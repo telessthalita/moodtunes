@@ -1,64 +1,181 @@
-/* App.css */
+/* Estilos gerais */
+body {
+  margin: 0;
+  font-family: 'Arial', sans-serif;
+  background-color: #1a1a2e;
+  color: #e6e6e6;
+}
+
 .app-container {
-  max-width: 800px;
+  display: flex;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  text-align: center;
+  gap: 20px;
 }
 
-.loading-container {
-  margin-top: 50px;
-  font-size: 1.2em;
-  color: #555;
+/* Container do Chat */
+.chat-container {
+  flex: 1;
+  background-color: #16213e;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-.auth-container, .chat-container {
-  margin-top: 50px;
+.chat-container h1 {
+  color: #1db954;
+  font-size: 2rem;
+  margin-bottom: 20px;
 }
 
-button {
-  padding: 10px 20px;
+/* Botão de Login com Spotify */
+.spotify-login-button {
   background-color: #1db954;
   color: white;
   border: none;
-  border-radius: 5px;
+  padding: 10px 20px;
+  border-radius: 8px;
   cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background-color 0.3s ease;
 }
 
-button:hover {
+.spotify-login-button:disabled {
+  background-color: #4caf50;
+  cursor: not-allowed;
+}
+
+.spotify-login-button:hover:not(:disabled) {
   background-color: #1ed760;
 }
 
-/* App.css */
-.playlist-button {
-  display: inline-block;
-  margin-top: 20px;
-  padding: 10px 20px;
-  background-color: #1db954; /* Verde do Spotify */
+/* Histórico do Chat */
+.chat-history {
+  height: 400px;
+  overflow-y: auto;
+  border: 1px solid #2c3e50;
+  padding: 10px;
+  border-radius: 8px;
+  background-color: #0f3460;
+  margin-bottom: 20px;
+}
+
+.user-message {
+  color: #1db954;
+  margin: 5px 0;
+}
+
+.bot-message {
+  color: #e6e6e6;
+  margin: 5px 0;
+}
+
+/* Campo de Entrada de Mensagem */
+.chat-input {
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #2c3e50;
+  background-color: #0f3460;
+  color: #e6e6e6;
+  font-size: 1rem;
+}
+
+.chat-input input::placeholder {
+  color: #7f8c8d;
+}
+
+.send-button {
+  background-color: #1db954;
   color: white;
-  text-decoration: none;
-  border-radius: 5px;
-  font-size: 1.1em;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   transition: background-color 0.3s ease;
 }
 
-.playlist-button:hover {
-  background-color: #1ed760; /* Verde mais claro do Spotify */
+.send-button:hover {
+  background-color: #1ed760;
 }
 
-/* App.css */
-.playlist-button {
-  display: inline-block;
+/* Container da Playlist */
+.playlist-container {
+  flex: 1;
+  background-color: #16213e;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.playlist-preview {
   margin-top: 20px;
-  padding: 10px 20px;
-  background-color: #1db954; /* Verde do Spotify */
-  color: white;
-  text-decoration: none;
-  border-radius: 5px;
-  font-size: 1.1em;
-  transition: background-color 0.3s ease;
 }
 
-.playlist-button:hover {
-  background-color: #1ed760; /* Verde mais claro do Spotify */
+.playlist-preview h2 {
+  color: #1db954;
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
+
+.playlist-preview ul {
+  list-style: none;
+  padding: 0;
+}
+
+.playlist-preview li {
+  background-color: #0f3460;
+  padding: 10px;
+  margin: 5px 0;
+  border-radius: 8px;
+  color: #e6e6e6;
+}
+
+/* Botões Estilizados */
+button {
+  background: #1db954;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2%;
+  transition: all 0.3s ease;
+  font-weight: bold;
+}
+
+button:hover:not(:disabled) {
+  background: #1ed760;
+  transform: scale(1.05);
+}
+
+button:disabled {
+  background: #444;
+  cursor: not-allowed;
+}
+
+/* Iframe do Spotify */
+iframe {
+  width: 100%;
+  height: 380px;
+  border-radius: 8px;
+  border: none;
+  margin-top: 20px;
 }
