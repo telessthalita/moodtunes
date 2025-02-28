@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
+import Chat from './components/Chat';
+import PlaylistPreview from './components/PlaylistPreview';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -53,62 +55,34 @@ const App = () => {
   };
 
   return (
-    <div className="app-container">
-      <div className="chat-container">
+    <div className="app">
+      <header className="app-header">
         <h1>MoodTunes</h1>
-        <button onClick={loginWithSpotify} disabled={isAuthenticated}>
-          {isAuthenticated ? 'Conectado ao Spotify' : 'Login com Spotify'}
+        <button
+          className="auth-button"
+          onClick={loginWithSpotify}
+          disabled={isAuthenticated}
+        >
+          {isAuthenticated ? 'Conectado ao Spotify' : 'Faça login no Spotify para começar'}
         </button>
+      </header>
 
-        <div className="chat-history">
-          {chat.map((msg, index) => (
-            <p key={index} className={msg.role === 'user' ? 'user-message' : 'bot-message'}>
-              {msg.text}
-            </p>
-          ))}
-        </div>
-
-        <div className="chat-input">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Digite sua mensagem..."
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-          />
-          <button onClick={sendMessage}>Enviar</button>
-        </div>
-      </div>
-
-      <div className="playlist-container">
-        {playlist && showPreview && (
-          <div className="playlist-preview">
-            {playlist.tracks && Array.isArray(playlist.tracks) ? (
-              <ul>
-                {playlist.tracks.map((track, index) => (
-                  <li key={index}>{track}</li>
-                ))}
-              </ul>
-            ) : (
-              <p>Aqui está a sua trilha sonora </p>
-            )}
-
-            <iframe
-              src={`https://open.spotify.com/embed/playlist/${playlist.id}`}
-              width="100%"
-              height="380"
-              frameBorder="0"
-              allowtransparency="true"
-              allow="encrypted-media"
-              title="Spotify Playlist"
-            ></iframe>
-
-            <button onClick={() => window.open(playlist.url, '_blank')}>
-              Ouvir no Spotify
-            </button>
-          </div>
-        )}
-      </div>
+      {isAuthenticated && (
+        <main className="app-main">
+          <section className="chat-section">
+            <Chat
+              chat={chat}
+              message={message}
+              setMessage={setMessage}
+              sendMessage={sendMessage}
+              isAuthenticated={isAuthenticated}
+            />
+          </section>
+          <section className="playlist-section">
+            <PlaylistPreview playlist={playlist} showPreview={showPreview} />
+          </section>
+        </main>
+      )}
     </div>
   );
 };

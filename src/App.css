@@ -1,181 +1,324 @@
-/* Estilos gerais */
-body {
+
+* {
   margin: 0;
-  font-family: 'Arial', sans-serif;
-  background-color: #1a1a2e;
-  color: #e6e6e6;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.app-container {
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #0A0A0A, #1E1E1E);
+  color: #FFFFFF;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(45deg, #8A2BE2, #FF007F);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(45deg, #FF007F, #8A2BE2);
+}
+
+.app {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
-  gap: 20px;
 }
 
-/* Container do Chat */
-.chat-container {
-  flex: 1;
-  background-color: #16213e;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+.app-header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 
-.chat-container h1 {
-  color: #1db954;
-  font-size: 2rem;
+.app-header h1 {
+  font-size: 3rem;
+  font-weight: 700;
+  background: linear-gradient(45deg, #00C6FB, #8A2BE2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   margin-bottom: 20px;
 }
 
-/* Botão de Login com Spotify */
-.spotify-login-button {
-  background-color: #1db954;
-  color: white;
+.auth-button {
+  background: linear-gradient(45deg, #8A2BE2, #FF007F);
   border: none;
-  padding: 10px 20px;
-  border-radius: 8px;
-  cursor: pointer;
+  color: #FFFFFF;
+  padding: 12px 24px;
   font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background-color 0.3s ease;
+  font-weight: 500;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-.spotify-login-button:disabled {
-  background-color: #4caf50;
+.auth-button:disabled {
+  background: linear-gradient(45deg, #555, #888);
   cursor: not-allowed;
 }
 
-.spotify-login-button:hover:not(:disabled) {
-  background-color: #1ed760;
+.auth-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
 }
 
-/* Histórico do Chat */
-.chat-history {
-  height: 400px;
+.app-main {
+  display: flex;
+  gap: 20px;
+  width: 100%;
+  height: calc(100vh - 160px);
+  overflow: hidden;
+}
+
+.chat-section {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
   overflow-y: auto;
-  border: 1px solid #2c3e50;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
   padding: 10px;
-  border-radius: 8px;
-  background-color: #0f3460;
   margin-bottom: 20px;
 }
 
+.message-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.message-container.user {
+  justify-content: flex-end;
+}
+
+.message-container.bot {
+  justify-content: flex-start;
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+.bot-message {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  padding: 15px 20px; 
+  border-radius: 15px;
+  font-size: 1rem; 
+  max-width: 80%; 
+  word-wrap: break-word;
+  white-space: normal;
+}
+.user-message, .bot-message {
+  max-width: 70%;
+  padding: 10px 15px;
+  border-radius: 15px;
+  font-size: 0.9rem;
+}
+
 .user-message {
-  color: #1db954;
-  margin: 5px 0;
+  background: linear-gradient(45deg, #8A2BE2, #FF007F);
+  color: #FFFFFF;
 }
 
 .bot-message {
-  color: #e6e6e6;
-  margin: 5px 0;
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
 }
 
-/* Campo de Entrada de Mensagem */
 .chat-input {
   display: flex;
   gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
 }
 
 .chat-input input {
   flex: 1;
   padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #2c3e50;
-  background-color: #0f3460;
-  color: #e6e6e6;
+  border: none;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
   font-size: 1rem;
 }
 
 .chat-input input::placeholder {
-  color: #7f8c8d;
+  color: rgba(255, 255, 255, 0.7);
 }
 
-.send-button {
-  background-color: #1db954;
-  color: white;
+.chat-input button {
+  background: linear-gradient(45deg, #8A2BE2, #FF007F);
   border: none;
+  color: #FFFFFF;
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: 15px;
   cursor: pointer;
-  font-size: 1rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chat-input button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
+}
+
+
+.playlist-section {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 20px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden; 
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; 
+}
+
+.playlist-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  transition: background-color 0.3s ease;
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
-.send-button:hover {
-  background-color: #1ed760;
+.playlist-cover {
+  width: 100px;
+  height: 100px;
+  border-radius: 10px;
+  object-fit: cover;
 }
 
-/* Container da Playlist */
-.playlist-container {
-  flex: 1;
-  background-color: #16213e;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.playlist-preview {
-  margin-top: 20px;
-}
-
-.playlist-preview h2 {
-  color: #1db954;
+.playlist-header h2 {
   font-size: 1.5rem;
+  color: #FFFFFF;
+  margin: 0;
+}
+.playlist-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.playlist-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #FFFFFF;
   margin-bottom: 10px;
 }
 
-.playlist-preview ul {
-  list-style: none;
-  padding: 0;
-}
-
-.playlist-preview li {
-  background-color: #0f3460;
-  padding: 10px;
-  margin: 5px 0;
-  border-radius: 8px;
-  color: #e6e6e6;
-}
-
-/* Botões Estilizados */
-button {
-  background: #1db954;
-  color: white;
-  border: none;
-  padding: 12px 20px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 2%;
-  transition: all 0.3s ease;
-  font-weight: bold;
-}
-
-button:hover:not(:disabled) {
-  background: #1ed760;
-  transform: scale(1.05);
-}
-
-button:disabled {
-  background: #444;
-  cursor: not-allowed;
-}
-
-/* Iframe do Spotify */
-iframe {
+.track-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 15px;
   width: 100%;
-  height: 380px;
-  border-radius: 8px;
+}
+
+.track-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #FFFFFF;
+  transition: background 0.3s ease;
+}
+
+.track-card:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.track-number {
+  font-weight: bold;
+  color: #8A2BE2;
+  margin-bottom: 5px;
+}
+
+.track-name {
+  flex: 1;
+}
+
+.spotify-iframe {
+  border-radius: 15px;
   border: none;
   margin-top: 20px;
+}
+
+.spotify-button {
+  background: linear-gradient(45deg, #8A2BE2, #FF007F);
+  border: none;
+  color: #FFFFFF;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 500;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  margin-top: 20px;
+  align-self: center;
+}
+
+.spotify-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
+}
+
+
+@keyframes typewriter {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.typewriter-text {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typewriter 3s steps(40) 1s 1 normal both;
+  font-size: 1.1rem; 
 }
