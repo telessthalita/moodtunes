@@ -1,4 +1,4 @@
-
+/* Estilos gerais (mantidos do seu código original) */
 * {
   margin: 0;
   padding: 0;
@@ -36,7 +36,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
@@ -86,7 +86,7 @@ body {
   overflow: hidden;
 }
 
-.chat-section {
+.chat-section, .playlist-section {
   flex: 1;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 15px;
@@ -131,16 +131,7 @@ body {
   border-radius: 50%;
   margin-right: 10px;
 }
-.bot-message {
-  background: rgba(255, 255, 255, 0.2);
-  color: #FFFFFF;
-  padding: 15px 20px; 
-  border-radius: 15px;
-  font-size: 1rem; 
-  max-width: 80%; 
-  word-wrap: break-word;
-  white-space: normal;
-}
+
 .user-message, .bot-message {
   max-width: 70%;
   padding: 10px 15px;
@@ -195,20 +186,6 @@ body {
   box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
 }
 
-
-.playlist-section {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 15px;
-  padding: 20px;
-  backdrop-filter: blur(10px);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
-  overflow: hidden; 
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between; 
-}
-
 .playlist-header {
   display: flex;
   align-items: center;
@@ -228,6 +205,7 @@ body {
   color: #FFFFFF;
   margin: 0;
 }
+
 .playlist-preview {
   display: flex;
   flex-direction: column;
@@ -239,13 +217,6 @@ body {
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
   height: 100%;
   overflow-y: auto;
-}
-
-.playlist-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #FFFFFF;
-  margin-bottom: 10px;
 }
 
 .track-grid {
@@ -270,22 +241,6 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.track-number {
-  font-weight: bold;
-  color: #8A2BE2;
-  margin-bottom: 5px;
-}
-
-.track-name {
-  flex: 1;
-}
-
-.spotify-iframe {
-  border-radius: 15px;
-  border: none;
-  margin-top: 20px;
-}
-
 .spotify-button {
   background: linear-gradient(45deg, #8A2BE2, #FF007F);
   border: none;
@@ -305,20 +260,66 @@ body {
   box-shadow: 0 0 15px rgba(255, 0, 127, 0.6);
 }
 
-
-@keyframes typewriter {
-  from {
-    width: 0;
+/* Media Queries para Responsividade */
+@media (max-width: 768px) {
+  .app-main {
+    flex-direction: column;
+    height: auto;
   }
-  to {
+
+  .chat-section, .playlist-section {
     width: 100%;
+    margin-bottom: 20px;
+  }
+
+  .app-header h1 {
+    font-size: 2rem;
+  }
+
+  .auth-button, .chat-input button, .spotify-button {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+  }
+
+  .track-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .playlist-cover {
+    width: 80px;
+    height: 80px;
+  }
+
+  .playlist-header h2 {
+    font-size: 1.2rem;
   }
 }
 
-.typewriter-text {
-  display: inline-block;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: typewriter 3s steps(40) 1s 1 normal both;
-  font-size: 1.1rem; 
+@media (max-width: 480px) {
+  .app-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .auth-button, .chat-input button, .spotify-button {
+    padding: 8px 16px;
+    font-size: 0.8rem;
+  }
+
+  .track-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .playlist-cover {
+    width: 60px;
+    height: 60px;
+  }
+
+  .playlist-header h2 {
+    font-size: 1rem;
+  }
+
+  .user-message, .bot-message {
+    max-width: 90%;
+    font-size: 0.8rem;
+  }
 }
