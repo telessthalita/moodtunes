@@ -29,7 +29,6 @@ const PlaylistPreview = ({ playlist, showPreview }) => {
   return (
     <div className="playlist-preview">
       <div className="playlist-content">
-        {/* Exibe a mensagem antes de mostrar o iframe */}
         {showMessage && (
           <div className="message-container bot">
             <img src={botImage} alt="MoodTunes Bot" className="avatar" />
@@ -41,13 +40,12 @@ const PlaylistPreview = ({ playlist, showPreview }) => {
           </div>
         )}
 
-        {/* Exibe o iframe do Spotify */}
         {playlist.id && (
           <div className="spotify-iframe-container">
             <iframe
               src={`https://open.spotify.com/embed/playlist/${playlist.id}`}
               width="100%"
-              height="500" 
+              height="410" 
               frameBorder="0"
               allowtransparency="true"
               allow="encrypted-media"
@@ -57,7 +55,7 @@ const PlaylistPreview = ({ playlist, showPreview }) => {
           </div>
         )}
 
-        {/* Botão para abrir no Spotify */}
+
         <button
           className="spotify-button"
           onClick={() => window.open(playlist.url, '_blank')}

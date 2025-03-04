@@ -102,8 +102,6 @@ const App = () => {
         </main>
       ) : (
         <div className="auth-message">
-          <p>Você precisa fazer login no Spotify para continuar.</p>
-          <button onClick={loginWithSpotify}>Fazer login no Spotify</button>
         </div>
       )}
     </div>
