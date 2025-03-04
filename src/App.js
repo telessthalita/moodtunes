@@ -3,6 +3,7 @@ import axios from 'axios';
 import './App.css';
 import Chat from './components/Chat';
 import PlaylistPreview from './components/PlaylistPreview';
+import AlertModal from './components/AlertModal';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -12,6 +13,7 @@ const App = () => {
   const [playlist, setPlaylist] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showAlert, setShowAlert] = useState(false);
   const userId = localStorage.getItem('userId') || `user_${Date.now()}`;
 
   useEffect(() => {
@@ -27,6 +29,23 @@ const App = () => {
       console.error('Erro ao verificar autenticação:', error);
     }
   };
+
+  useEffect(() => {
+    const checkTokenExpiration = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/check-token`);
+        if (res.data.isTokenExpired) {
+          setIsAuthenticated(false);
+          setShowAlert(true); // Mostra o alerta quando o token expirar
+        }
+      } catch (error) {
+        console.error('Erro ao verificar token:', error);
+      }
+    };
+
+    const interval = setInterval(checkTokenExpiration, 60000); // Verifica a cada 1 minuto
+    return () => clearInterval(interval); // Limpa o intervalo ao desmontar o componente
+  }, []);
 
   const sendMessage = async () => {
     if (!message.trim()) return;
@@ -52,6 +71,15 @@ const App = () => {
 
   const loginWithSpotify = () => {
     window.location.href = `${API_URL}/auth`;
+  };
+
+  const handleAlertClose = () => {
+    setShowAlert(false);
+    // Redireciona o usuário para o início ou faz logout
+    setIsAuthenticated(false);
+    setChat([]);
+    setPlaylist(null);
+    setShowPreview(false);
   };
 
   return (
@@ -82,6 +110,13 @@ const App = () => {
             <PlaylistPreview playlist={playlist} showPreview={showPreview} />
           </section>
         </main>
+      )}
+
+      {showAlert && (
+        <AlertModal
+          message="Sua autenticação expirou. Por favor, faça login novamente."
+          onClose={handleAlertClose}
+        />
       )}
     </div>
   );

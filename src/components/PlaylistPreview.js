@@ -1,49 +1,72 @@
-import React from 'react';
-import botImage from '../assets/moodtunes.jpeg'; 
-
+import React, { useState, useEffect } from 'react';
+import botImage from '../assets/moodtunes.jpeg';
+import '../App.css'; 
 
 const PlaylistPreview = ({ playlist, showPreview }) => {
-  if (!playlist || !showPreview) return null;
+  const [showMessage, setShowMessage] = useState(true); // Controla a exibição da mensagem
+
+  useEffect(() => {
+    if (playlist && showPreview) {
+      // Esconde a mensagem após 3 segundos (tempo para o iframe carregar)
+      const timer = setTimeout(() => {
+        setShowMessage(false);
+      }, 3000); // Ajuste o tempo conforme necessário
+      return () => clearTimeout(timer);
+    }
+  }, [playlist, showPreview]);
+
+  if (!playlist || !showPreview) {
+    return (
+      <div className="message-container bot">
+        <img src={botImage} alt="MoodTunes Bot" className="avatar" />
+        <p className="bot-message">
+          <span className="typewriter-text">
+            Gerando sua playlist... Aguarde um momento!
+          </span>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="playlist-preview">
-      {playlist.tracks && Array.isArray(playlist.tracks) ? (
-        <div className="track-grid">
-          {playlist.tracks.map((track, index) => (
-            <div key={index} className="track-card">
-              <span className="track-number">{index + 1}.</span>
-              <span className="track-name">{track}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="message-container bot">
-          <img src={botImage} alt="MoodTunes Bot" className="avatar" />
-          <p className="bot-message">
-            <span className="typewriter-text">
-               Aqui vai a sua trilha sonora!
-            </span>
-          </p>
-        </div>
-      )}
+      <div className="playlist-content">
+        {/* Exibe a mensagem antes de mostrar o iframe */}
+        {showMessage && (
+          <div className="message-container bot">
+            <img src={botImage} alt="MoodTunes Bot" className="avatar" />
+            <p className="bot-message">
+              <span className="typewriter-text">
+                Aqui vai a sua trilha sonora!
+              </span>
+            </p>
+          </div>
+        )}
 
-      <iframe
-        src={`https://open.spotify.com/embed/playlist/${playlist.id}`}
-        width="100%"
-        height="400"
-        frameBorder="0"
-        allowtransparency="true"
-        allow="encrypted-media"
-        title="Spotify Playlist"
-        className="spotify-iframe"
-      ></iframe>
+        {/* Exibe o iframe do Spotify */}
+        {playlist.id && (
+          <div className="spotify-iframe-container">
+            <iframe
+              src={`https://open.spotify.com/embed/playlist/${playlist.id}`}
+              width="100%"
+              height="500" // Aumentei a altura para exibir mais músicas
+              frameBorder="0"
+              allowtransparency="true"
+              allow="encrypted-media"
+              title="Spotify Playlist"
+              className="spotify-iframe"
+            ></iframe>
+          </div>
+        )}
 
-      <button 
-        className="spotify-button"
-        onClick={() => window.open(playlist.url, '_blank')}
-      >
-        Ouvir no Spotify
-      </button>
+        {/* Botão para abrir no Spotify */}
+        <button
+          className="spotify-button"
+          onClick={() => window.open(playlist.url, '_blank')}
+        >
+          Ouvir no Spotify
+        </button>
+      </div>
     </div>
   );
 };
