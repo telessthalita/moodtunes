@@ -3,14 +3,12 @@ import botImage from '../assets/moodtunes.jpeg';
 import '../App.css'; 
 
 const PlaylistPreview = ({ playlist, showPreview }) => {
-  const [showMessage, setShowMessage] = useState(true); // Controla a exibição da mensagem
-
+  const [showMessage, setShowMessage] = useState(true); 
   useEffect(() => {
     if (playlist && showPreview) {
-      // Esconde a mensagem após 3 segundos (tempo para o iframe carregar)
       const timer = setTimeout(() => {
         setShowMessage(false);
-      }, 3000); // Ajuste o tempo conforme necessário
+      }, 3000); 
       return () => clearTimeout(timer);
     }
   }, [playlist, showPreview]);
@@ -49,7 +47,7 @@ const PlaylistPreview = ({ playlist, showPreview }) => {
             <iframe
               src={`https://open.spotify.com/embed/playlist/${playlist.id}`}
               width="100%"
-              height="500" // Aumentei a altura para exibir mais músicas
+              height="500" 
               frameBorder="0"
               allowtransparency="true"
               allow="encrypted-media"
