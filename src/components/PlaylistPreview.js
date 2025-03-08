@@ -19,7 +19,7 @@ const PlaylistPreview = ({ playlist, showPreview }) => {
         <img src={botImage} alt="MoodTunes Bot" className="avatar" />
         <p className="bot-message">
           <span className="typewriter-text">
-          Vamos bater um papo para sentir sua vibe!  Enquanto isso, vou preparando a trilha sonora perfeita para você...          </span>
+          Vamos bater um papo para sentir sua vibe!</span>
         </p>
       </div>
     );
