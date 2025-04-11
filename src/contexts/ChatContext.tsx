@@ -30,7 +30,7 @@ interface ChatContextType {
 // Create context
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-export const ChatProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { userId } = useAuth();
   const { t, language } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,7 +60,7 @@ export const ChatProvider: React.FC<{children: React.ReactNode}> = ({ children }
         body: JSON.stringify({
           user_id: userId,
           message: content,
-          lang: language // Send current language to get response in same language
+          lang: language
         }),
       });
 
@@ -69,14 +69,14 @@ export const ChatProvider: React.FC<{children: React.ReactNode}> = ({ children }
       }
 
       const data = await response.json();
-      
-      // Add AI response to the chat
-      const aiMessage: Message = { role: 'assistant', content: data.response };
+
+      const aiMessage: Message = { role: 'assistant', content: data.resposta };
       setMessages(prev => [...prev, aiMessage]);
 
-      // Check if conversation is finished
-      if (data.finished) {
+      if (data.playlist_url) {
         setIsFinished(true);
+        setMood(data.mood || null);
+        setPlaylistUrl(data.playlist_url || null);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -84,6 +84,7 @@ export const ChatProvider: React.FC<{children: React.ReactNode}> = ({ children }
     } finally {
       setIsLoading(false);
     }
+
   }, [userId, language, t]);
 
   // Load mood result from the backend
@@ -91,7 +92,7 @@ export const ChatProvider: React.FC<{children: React.ReactNode}> = ({ children }
     setIsLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/moodresult?user_id=${userId}`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
