@@ -1,11 +1,13 @@
+
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
-import { Music, Sparkles, HeadphonesIcon, Waves } from "lucide-react";
+import { Music, Sparkles } from "lucide-react";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import { toast } from "sonner";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -18,7 +20,18 @@ const Index = () => {
     const userId = params.get("user_id");
     
     if (userId) {
-      checkSession(userId);
+      console.log("Checking session for user ID:", userId);
+      checkSession(userId)
+        .then(success => {
+          console.log("Session check result:", success);
+          if (!success) {
+            toast.error("Falha na autenticação. Por favor, tente novamente.");
+          }
+        })
+        .catch(err => {
+          console.error("Session check error:", err);
+          toast.error("Erro ao verificar sessão: " + (err.message || "Erro desconhecido"));
+        });
     }
   }, [checkSession]);
 
@@ -27,6 +40,11 @@ const Index = () => {
       navigate("/chat");
     }
   }, [isAuthenticated, navigate]);
+
+  const handleLogin = () => {
+    console.log("Login button clicked");
+    login();
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#1E1B2E] via-[#241e36] to-[#1a172a] text-white relative overflow-hidden">
@@ -80,7 +98,7 @@ const Index = () => {
         </div>
         
         <Button 
-          onClick={login}
+          onClick={handleLogin}
           disabled={isLoading}
           className="bg-[#1DB954] hover:bg-[#1ed760] text-white font-bold py-4 px-10 rounded-full text-lg flex items-center gap-3 transition-all transform hover:scale-105 hover:shadow-[0_0_15px_rgba(29,185,84,0.5)] disabled:opacity-70 disabled:cursor-not-allowed"
         >
@@ -98,17 +116,6 @@ const Index = () => {
         <p className="mt-8 text-sm text-gray-400 max-w-xs mx-auto animate-fade-in-delay">
           {t("landing.instruction")}
         </p>
-        
-        <div className="flex items-center justify-center gap-6 mt-12">
-          <div className="flex flex-col items-center opacity-80 hover:opacity-100 transition-opacity">
-            <HeadphonesIcon className="text-[#1DB954] mb-2" size={28} />
-            <span className="text-xs text-gray-400">{t("landing.feature1")}</span>
-          </div>
-          <div className="flex flex-col items-center opacity-80 hover:opacity-100 transition-opacity">
-            <Waves className="text-[#1DB954] mb-2" size={28} />
-            <span className="text-xs text-gray-400">{t("landing.feature2")}</span>
-          </div>
-        </div>
       </div>
       
       <Footer />
