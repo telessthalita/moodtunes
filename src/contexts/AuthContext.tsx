@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
@@ -27,10 +27,60 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('userId'));
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Login function - redirects to Spotify auth
-  const login = useCallback(() => {
-    window.location.href = `${API_BASE_URL}/spotify/login`;
+  // Setup event listener for the popup message
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      // Verify origin for security
+      if (event.origin !== API_BASE_URL) return;
+      
+      // Check if the message contains a user_id
+      if (event.data && event.data.user_id) {
+        const userId = event.data.user_id;
+        checkSession(userId);
+      }
+    };
+
+    window.addEventListener('message', handleAuthMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleAuthMessage);
+    };
   }, []);
+
+  // Login function - opens a popup for Spotify auth
+  const login = useCallback(() => {
+    const width = 450;
+    const height = 730;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    const popup = window.open(
+      `${API_BASE_URL}/spotify/login`,
+      'SpotifyLogin',
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
+    
+    // Check if popup was blocked
+    if (!popup || popup.closed) {
+      toast.error(t("error.popupBlocked"));
+    }
+    
+    setIsLoading(true);
+    
+    // Fallback for browsers that don't support postMessage
+    const checkPopupClosed = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkPopupClosed);
+        setIsLoading(false);
+        
+        // Try to get userId from localStorage (if backend sets it)
+        const storedUserId = localStorage.getItem('userId');
+        if (storedUserId) {
+          checkSession(storedUserId);
+        }
+      }
+    }, 500);
+  }, [t]);
 
   // Logout function
   const logout = useCallback(() => {
