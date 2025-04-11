@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
-import { Music, Sparkles, HeadphonesIcon, WaveformIcon } from "lucide-react";
+import { Music, Sparkles, HeadphonesIcon, WaveIcon } from "lucide-react";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 
@@ -106,7 +106,7 @@ const Index = () => {
             <span className="text-xs text-gray-400">{t("landing.feature1")}</span>
           </div>
           <div className="flex flex-col items-center opacity-80 hover:opacity-100 transition-opacity">
-            <WaveformIcon className="text-[#1DB954] mb-2" size={28} />
+            <WaveIcon className="text-[#1DB954] mb-2" size={28} />
             <span className="text-xs text-gray-400">{t("landing.feature2")}</span>
           </div>
         </div>
