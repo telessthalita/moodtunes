@@ -5,7 +5,7 @@ const Head = () => {
   return (
     <Helmet>
       <title>MoodTunes</title>
-      <link rel="icon" type="image/png" href="/favicon.png" />
+      <link rel="icon" type="image/png" href="/src/assets/favicon.png" />
     </Helmet>
   );
 };
