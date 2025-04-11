@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ChatProvider } from "./contexts/ChatContext";
+import Head from "./components/Head";
 import Index from "./pages/Index";
 import Chat from "./pages/Chat";
 import Result from "./pages/Result";
@@ -21,6 +22,7 @@ const AppRouter = () => (
     <LanguageProvider>
       <AuthProvider>
         <ChatProvider>
+          <Head />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route 
