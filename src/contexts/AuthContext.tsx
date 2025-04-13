@@ -21,7 +21,7 @@ type AuthContextType = {
 // Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [userId, setUserId] = useState<string | null>(localStorage.getItem('userId'));
@@ -34,7 +34,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
       console.log("Received message:", event);
-      
+
       // Check if the message contains a user_id
       if (event.data && event.data.user_id) {
         const userId = event.data.user_id;
@@ -45,7 +45,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
 
     window.addEventListener('message', handleAuthMessage);
     console.log("Auth message listener setup completed");
-    
+
     return () => {
       window.removeEventListener('message', handleAuthMessage);
     };
@@ -54,14 +54,12 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   // Check auth popup status
   useEffect(() => {
     if (!authPopup || isAuthenticated) return;
-    
+
     const timer = setInterval(() => {
       if (authPopup.closed) {
         console.log("Auth popup was closed by user");
         clearInterval(timer);
         setIsLoading(false);
-        setLoginError("Autenticação cancelada. A janela foi fechada.");
-        toast.error("Autenticação cancelada. Por favor, tente novamente.");
         setAuthPopup(null);
       }
     }, 1000);
@@ -89,27 +87,27 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
     console.log("Starting login process...");
     // Reset any previous errors
     setLoginError(null);
-    
+
     const width = 450;
     const height = 730;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
-    
+
     const authUrl = `${API_BASE_URL}/spotify/login`;
     console.log("Auth URL:", authUrl);
-    
+
     try {
       // Close any existing popup
       if (authPopup && !authPopup.closed) {
         authPopup.close();
       }
-      
+
       const popup = window.open(
         authUrl,
         'SpotifyLogin',
         `width=${width},height=${height},top=${top},left=${left}`
       );
-      
+
       // Check if popup was blocked
       if (!popup || popup.closed) {
         console.error("Popup was blocked or failed to open");
@@ -118,14 +116,14 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
         setIsLoading(false);
         return;
       }
-      
+
       console.log("Auth popup opened successfully");
       setIsLoading(true);
       setAuthPopup(popup);
-      
+
       // Force focus to the popup
       popup.focus();
-      
+
       // Try to detect if popup is redirected to success page
       try {
         const checkRedirect = setInterval(() => {
@@ -145,7 +143,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
             // Ignore - this is expected when the popup navigates to a different domain
           }
         }, 1000);
-        
+
         // Clear the interval after 2 minutes to prevent memory leaks
         setTimeout(() => clearInterval(checkRedirect), 120000);
       } catch (e) {
@@ -177,23 +175,23 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
       setIsLoading(true);
       const sessionUrl = `${API_BASE_URL}/session_user?user_id=${id}`;
       console.log("Session check URL:", sessionUrl);
-      
+
       const response = await fetch(sessionUrl);
       console.log("Session check response status:", response.status);
-      
+
       if (response.ok) {
         console.log("Session is valid");
         localStorage.setItem('userId', id);
         setUserId(id);
         setIsAuthenticated(true);
         setLoginError(null);
-        
+
         // Close the popup if it's still open
         if (authPopup && !authPopup.closed) {
           authPopup.close();
           setAuthPopup(null);
         }
-        
+
         setIsLoading(false);
         return true;
       } else {
