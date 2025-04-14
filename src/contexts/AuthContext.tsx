@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
 
-
+// Define API base URL
 const API_BASE_URL = 'https://moodtunes-backend.onrender.com';
 
+// Types
 type AuthContextType = {
   userId: string | null;
   isAuthenticated: boolean;
@@ -75,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [authPopup, isAuthenticated]);
 
-  // Alteração aqui para mobile e desktop login
   const login = useCallback(() => {
     setLoginError(null);
 
@@ -83,11 +83,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const authUrl = `${API_BASE_URL}/spotify/login`;
 
     if (isMobile) {
-      // Para mobile, redirecionamos diretamente para a página de login do Spotify
+      // For mobile, we directly redirect to Spotify login page
       window.location.href = authUrl;
       setIsLoading(true);
     } else {
-      // Para desktop, usamos popup
+      // For desktop, we use popup for login
       const width = 450;
       const height = 730;
       const left = window.screen.width / 2 - width / 2;
@@ -162,16 +162,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUserId(id);
         setIsAuthenticated(true);
         setLoginError(null);
-
         toast.success(
           <div className="flex items-center gap-2 font-medium">
             <span>✅</span>
             <span>{t("Login realizado com sucesso!")}</span>
           </div>
         );
-
-        // Redireciona para o chat
-        navigate('/chat');
 
         if (authPopup && !authPopup.closed) {
           authPopup.close();
@@ -193,7 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return false;
     }
-  }, [logout, t, authPopup, navigate]);
+  }, [logout, t, authPopup]);
 
   const contextValue = {
     userId,
