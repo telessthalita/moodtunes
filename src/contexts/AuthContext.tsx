@@ -79,77 +79,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(() => {
     setLoginError(null);
 
-    const width = 450;
-    const height = 730;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent); // Detect mobile device
     const authUrl = `${API_BASE_URL}/spotify/login`;
 
-    try {
-      if (authPopup && !authPopup.closed) {
-        authPopup.close();
-      }
-
-
-
-
-
-
-
-      const popup = window.open(
-        authUrl,
-        'SpotifyLogin',
-        `width=${width},height=${height},top=${top},left=${left}`
-      );
-
-      if (!popup || popup.closed) {
-        setLoginError("O popup foi bloqueado pelo navegador. Por favor, permita popups para este site.");
-        toast.error("O popup foi bloqueado. Por favor, permita popups para este site.");
-        setIsLoading(false);
-        return;
-      }
-
+    if (isMobile) {
+      // For mobile, we directly redirect to Spotify login page
+      window.location.href = authUrl;
       setIsLoading(true);
-      setAuthPopup(popup);
-      popup.focus();
-
-
-
+    } else {
+      // For desktop, we use popup for login
+      const width = 450;
+      const height = 730;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
 
       try {
-        const checkRedirect = setInterval(() => {
-          try {
-            if (popup.location.href.includes('user_id=')) {
-              clearInterval(checkRedirect);
-              const url = new URL(popup.location.href);
-              const userId = url.searchParams.get('user_id');
-              if (userId) {
-                checkSession(userId);
-                popup.close();
+        if (authPopup && !authPopup.closed) {
+          authPopup.close();
+        }
 
+        const popup = window.open(
+          authUrl,
+          'SpotifyLogin',
+          `width=${width},height=${height},top=${top},left=${left}`
+        );
 
+        if (!popup || popup.closed) {
+          setLoginError("O popup foi bloqueado pelo navegador. Por favor, permita popups para este site.");
+          toast.error("O popup foi bloqueado. Por favor, permita popups para este site.");
+          setIsLoading(false);
+          return;
+        }
 
+        setIsLoading(true);
+        setAuthPopup(popup);
+        popup.focus();
 
-
+        try {
+          const checkRedirect = setInterval(() => {
+            try {
+              if (popup.location.href.includes('user_id=')) {
+                clearInterval(checkRedirect);
+                const url = new URL(popup.location.href);
+                const userId = url.searchParams.get('user_id');
+                if (userId) {
+                  checkSession(userId);
+                  popup.close();
+                }
               }
-            }
-          } catch (e) { }
-        }, 1000);
+            } catch (e) { }
+          }, 1000);
 
-        setTimeout(() => clearInterval(checkRedirect), 120000);
-      } catch (e) {
-        console.warn("Redirect check setup falhou:", e);
-
-
-
-
-
+          setTimeout(() => clearInterval(checkRedirect), 120000);
+        } catch (e) {
+          console.warn("Redirect check setup falhou:", e);
+        }
+      } catch (error) {
+        setLoginError("Erro ao abrir janela de autenticação: " + (error instanceof Error ? error.message : String(error)));
+        toast.error("Erro ao abrir janela de autenticação");
+        setIsLoading(false);
       }
-    } catch (error) {
-      setLoginError("Erro ao abrir janela de autenticação: " + (error instanceof Error ? error.message : String(error)));
-      toast.error("Erro ao abrir janela de autenticação");
-      setIsLoading(false);
     }
   }, [authPopup]);
 
