@@ -24,126 +24,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('userId'));
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [authPopup, setAuthPopup] = useState<Window | null>(null);
 
-
-
+  // Efeito para verificar autenticação inicial e capturar o user_id do redirecionamento
   useEffect(() => {
-    const handleAuthMessage = (event: MessageEvent) => {
-      console.log("Received message:", event);
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('user_id');
 
-      if (event.data && event.data.user_id) {
-        const userId = event.data.user_id;
-        console.log("Received user_id:", userId);
-        checkSession(userId);
-      }
-    };
+    if (userId) {
+      // Limpa a URL mantendo apenas o path
+      window.history.replaceState({}, document.title, window.location.pathname);
 
-    window.addEventListener('message', handleAuthMessage);
-    console.log("Auth message listener setup completed");
-
-    return () => {
-      window.removeEventListener('message', handleAuthMessage);
-    };
+      // Processa o login
+      handleLoginSuccess(userId);
+    } else if (localStorage.getItem('userId')) {
+      // Verifica sessão existente ao carregar o app
+      checkSession(localStorage.getItem('userId')!);
+    }
   }, []);
 
-  useEffect(() => {
-    if (!authPopup || isAuthenticated) return;
-
-    const timer = setInterval(() => {
-      if (authPopup.closed) {
-        console.log("Auth popup was closed by user");
-        clearInterval(timer);
-        setIsLoading(false);
-        setAuthPopup(null);
-      }
-    }, 1000);
-
-    const timeout = setTimeout(() => {
-      clearInterval(timer);
-
-      if (authPopup && !authPopup.closed) {
-        authPopup.close();
-      }
-
-      setIsLoading(false);
-      setLoginError("Tempo limite de autenticação excedido. Por favor, tente novamente.");
-      toast.error("Tempo limite de autenticação excedido. Por favor, tente novamente.");
-      setAuthPopup(null);
-    }, 120000);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(timeout);
-    };
-  }, [authPopup, isAuthenticated]);
+  const handleLoginSuccess = (userId: string) => {
+    localStorage.setItem('userId', userId);
+    setUserId(userId);
+    setIsAuthenticated(true);
+    setLoginError(null);
+    setIsLoading(false);
+    navigate('/chat'); // Redireciona para a página de chat
+  };
 
   const login = useCallback(() => {
-    console.log("Starting login process...");
-    // Reset any previous errors
     setLoginError(null);
-
-    const width = 450;
-    const height = 730;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-
-    const authUrl = `${API_BASE_URL}/spotify/login`;
-    console.log("Auth URL:", authUrl);
-
-    try {
-      if (authPopup && !authPopup.closed) {
-        authPopup.close();
-      }
-
-      const popup = window.open(
-        authUrl,
-        'SpotifyLogin',
-        `width=${width},height=${height},top=${top},left=${left}`
-      );
-
-      if (!popup || popup.closed) {
-        console.error("Popup was blocked or failed to open");
-        setLoginError("O popup foi bloqueado pelo navegador. Por favor, permita popups para este site.");
-        toast.error("O popup foi bloqueado. Por favor, permita popups para este site.");
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("Auth popup opened successfully");
-      setIsLoading(true);
-      setAuthPopup(popup);
-
-      popup.focus();
-
-      try {
-        const checkRedirect = setInterval(() => {
-          try {
-            if (popup.location.href.includes('user_id=')) {
-              clearInterval(checkRedirect);
-              const url = new URL(popup.location.href);
-              const userId = url.searchParams.get('user_id');
-              if (userId) {
-                console.log("Detected user_id in popup URL:", userId);
-                checkSession(userId);
-                popup.close();
-              }
-            }
-          } catch (e) {
-          }
-        }, 1000);
-
-        setTimeout(() => clearInterval(checkRedirect), 120000);
-      } catch (e) {
-        console.warn("Could not set up redirect detection:", e);
-      }
-    } catch (error) {
-      console.error("Error opening auth popup:", error);
-      setLoginError("Erro ao abrir janela de autenticação: " + (error instanceof Error ? error.message : String(error)));
-      toast.error("Erro ao abrir janela de autenticação");
-      setIsLoading(false);
-    }
-  }, [authPopup]);
+    setIsLoading(true);
+    window.location.href = `${API_BASE_URL}/spotify/login`;
+  }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('userId');
@@ -151,48 +63,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     setLoginError(null);
     navigate('/');
-    console.log("User logged out");
   }, [navigate]);
 
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
-    console.log("Checking session for ID:", id);
     try {
       setIsLoading(true);
-      const sessionUrl = `${API_BASE_URL}/session_user?user_id=${id}`;
-      console.log("Session check URL:", sessionUrl);
-
-      const response = await fetch(sessionUrl);
-      console.log("Session check response status:", response.status);
+      const response = await fetch(`${API_BASE_URL}/session_user?user_id=${id}`);
 
       if (response.ok) {
-        console.log("Session is valid");
-        localStorage.setItem('userId', id);
-        setUserId(id);
-        setIsAuthenticated(true);
-        setLoginError(null);
-        if (authPopup && !authPopup.closed) {
-          authPopup.close();
-          setAuthPopup(null);
-        }
-
-        setIsLoading(false);
+        handleLoginSuccess(id);
         return true;
       } else {
         const errorText = await response.text();
-        console.error("Session is invalid, status:", response.status, "Error:", errorText);
-        setLoginError(`Sessão inválida (${response.status}): ${errorText || "Erro desconhecido"}`);
-        toast.error(t("error.sessionExpired"));
+        console.error("Session check failed:", errorText);
         logout();
+        toast.error(t("error.sessionExpired"));
         return false;
       }
     } catch (error) {
       console.error("Session check error:", error);
-      setLoginError("Erro de conexão: " + (error instanceof Error ? error.message : String(error)));
+      setLoginError("Erro de conexão");
       toast.error(t("error.connectionFailed"));
-      setIsLoading(false);
       return false;
+    } finally {
+      setIsLoading(false);
     }
-  }, [logout, t, authPopup]);
+  }, [logout, t]);
 
   const contextValue = {
     userId,
