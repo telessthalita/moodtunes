@@ -28,6 +28,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 
 
+
+
+
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
       console.log("Received message:", event);
@@ -83,8 +86,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Reset any previous errors
     setLoginError(null);
 
-    window.location.href = `${API_BASE_URL}/spotify/login`;
-  }, []);
+    const width = 450;
+    const height = 730;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const authUrl = `${API_BASE_URL}/spotify/login`;
+    console.log("Auth URL:", authUrl);
+
+    try {
+      if (authPopup && !authPopup.closed) {
+        authPopup.close();
+      }
+
+      const popup = window.open(
+        authUrl,
+        'SpotifyLogin',
+        `width=${width},height=${height},top=${top},left=${left}`
+      );
+
+      if (!popup || popup.closed) {
+        console.error("Popup was blocked or failed to open");
+        setLoginError("O popup foi bloqueado pelo navegador. Por favor, permita popups para este site.");
+        toast.error("O popup foi bloqueado. Por favor, permita popups para este site.");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("Auth popup opened successfully");
+      setIsLoading(true);
+      setAuthPopup(popup);
+
+      popup.focus();
+
+      try {
+        const checkRedirect = setInterval(() => {
+          try {
+            if (popup.location.href.includes('user_id=')) {
+              clearInterval(checkRedirect);
+              const url = new URL(popup.location.href);
+              const userId = url.searchParams.get('user_id');
+              if (userId) {
+                console.log("Detected user_id in popup URL:", userId);
+                checkSession(userId);
+                popup.close();
+              }
+            }
+          } catch (e) {
+          }
+        }, 1000);
+
+        setTimeout(() => clearInterval(checkRedirect), 120000);
+      } catch (e) {
+        console.warn("Could not set up redirect detection:", e);
+      }
+    } catch (error) {
+      console.error("Error opening auth popup:", error);
+      setLoginError("Erro ao abrir janela de autenticação: " + (error instanceof Error ? error.message : String(error)));
+      toast.error("Erro ao abrir janela de autenticação");
+      setIsLoading(false);
+    }
+  }, [authPopup]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('userId');
@@ -130,11 +192,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Session check error:", error);
       setLoginError("Erro de conexão: " + (error instanceof Error ? error.message : String(error)));
       toast.error(t("error.connectionFailed"));
+
+
       setIsLoading(false);
       return false;
     }
   }, [logout, t, authPopup]);
-
   const contextValue = {
     userId,
     isAuthenticated,
