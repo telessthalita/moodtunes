@@ -25,44 +25,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Efeito para verificar autenticação inicial e capturar o user_id do redirecionamento
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const userId = urlParams.get('user_id');
-
-    if (userId) {
-      // Limpa a URL mantendo apenas o path
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Processa o login
-      handleLoginSuccess(userId);
-    } else if (localStorage.getItem('userId')) {
-      // Verifica sessão existente ao carregar o app
-      checkSession(localStorage.getItem('userId')!);
-    }
-  }, []);
-
-  const handleLoginSuccess = (userId: string) => {
+  const handleLoginSuccess = useCallback((userId: string) => {
     localStorage.setItem('userId', userId);
     setUserId(userId);
     setIsAuthenticated(true);
     setLoginError(null);
     setIsLoading(false);
-    navigate('/chat'); // Redireciona para a página de chat
-  };
-
-  const login = useCallback(() => {
-    setLoginError(null);
-    setIsLoading(true);
-    window.location.href = `${API_BASE_URL}/spotify/login`;
-  }, []);
+    navigate('/chat', { replace: true });
+  }, [navigate]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('userId');
     setUserId(null);
     setIsAuthenticated(false);
     setLoginError(null);
-    navigate('/');
+    navigate('/', { replace: true });
   }, [navigate]);
 
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
@@ -88,7 +65,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [logout, t]);
+  }, [handleLoginSuccess, logout, t]);
+
+  useEffect(() => {
+    // Verifica sessão existente ao carregar o app
+    if (userId && !isAuthenticated) {
+      checkSession(userId);
+    }
+  }, [userId, isAuthenticated, checkSession]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('user_id');
+
+    if (userId) {
+      console.log('User ID from URL:', userId);
+      window.history.replaceState({}, '', window.location.pathname);
+      handleLoginSuccess(userId);
+    }
+  }, [handleLoginSuccess]);
+
+  const login = useCallback(() => {
+    console.log("Starting login process...");
+    setLoginError(null);
+    setIsLoading(true);
+    window.location.href = `${API_BASE_URL}/spotify/login`;
+  }, []);
 
   const contextValue = {
     userId,
