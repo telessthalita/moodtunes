@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
@@ -24,131 +24,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('userId'));
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const authPopupRef = useRef<Window | null>(null);
-  const popupCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-
-  const isMobile = useCallback(() => {
-    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }, []);
-
 
   const cleanupPopup = useCallback(() => {
-    if (popupCheckIntervalRef.current) {
-      clearInterval(popupCheckIntervalRef.current);
-      popupCheckIntervalRef.current = null;
-    }
-    if (authPopupRef.current && !authPopupRef.current.closed) {
-      authPopupRef.current.close();
-    }
-    authPopupRef.current = null;
     setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    const handleAuthMessage = (event: MessageEvent) => {
-      if (event.data?.user_id) {
-        checkSession(event.data.user_id);
-      }
-    };
+    const params = new URLSearchParams(window.location.search);
+    const userIdFromUrl = params.get('user_id');
 
-    window.addEventListener('message', handleAuthMessage);
-    return () => window.removeEventListener('message', handleAuthMessage);
+    if (userIdFromUrl) {
+      checkSession(userIdFromUrl);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   const login = useCallback(() => {
     setLoginError(null);
     setIsLoading(true);
+    window.location.href = `${API_BASE_URL}/spotify/login`;
+  }, []);
 
-    const authUrl = `${API_BASE_URL}/spotify/login`;
-
-    if (isMobile()) {
-
-      window.location.href = authUrl;
-      return;
-    }
-
-    const width = 450;
-    const height = 730;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-
-    try {
-      cleanupPopup();
-
-      const popup = window.open(
-        authUrl,
-        'SpotifyLogin',
-        `width=${width},height=${height},top=${top},left=${left}`
-      );
-
-      if (!popup || popup.closed) {
-        setLoginError(t("error.popupBlocked"));
-        toast.error(t("error.popupBlocked"));
-        setIsLoading(false);
-        return;
-      }
-
-      authPopupRef.current = popup;
-      popup.focus();
-
-      popupCheckIntervalRef.current = setInterval(() => {
-        try {
-          if (popup.location.href.includes('user_id=')) {
-            cleanupPopup();
-            const url = new URL(popup.location.href);
-            const userId = url.searchParams.get('user_id');
-            if (userId) checkSession(userId);
-          }
-        } catch (e) {
-
-        }
-      }, 1000);
-
-      setTimeout(() => {
-        if (authPopupRef.current && !authPopupRef.current.closed) {
-          setLoginError(t("error.authTimeout"));
-          toast.error(t("error.authTimeout"));
-          cleanupPopup();
-        }
-      }, 120000);
-
-    } catch (error) {
-      setLoginError(t("error.authWindow"));
-      toast.error(t("error.authWindow"));
-      setIsLoading(false);
-    }
-  }, [isMobile, cleanupPopup, t]);
-
-  // Logout
   const logout = useCallback(() => {
-    localStorage.removeItem('userId');
+    localStorage.removeItem('authToken');
     setUserId(null);
     setIsAuthenticated(false);
     setLoginError(null);
     navigate('/');
   }, [navigate]);
 
-  const checkSession = useCallback(async (id: string): Promise<boolean> => {
+  const checkSession = useCallback(async (userId: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      const response = await fetch(`${API_BASE_URL}/session_user?user_id=${id}`);
+      const response = await fetch(`${API_BASE_URL}/session_user?user_id=${userId}`);
 
       if (response.ok) {
-        localStorage.setItem('userId', id);
-        setUserId(id);
+        const data = await response.json();
+        localStorage.setItem('authToken', data.token);
+        setUserId(userId);
         setIsAuthenticated(true);
         setLoginError(null);
         toast.success(t("login.success"));
-        cleanupPopup();
         navigate('/chat');
         return true;
       } else {
-        const errorText = await response.text();
-        setLoginError(t("error.sessionInvalid"));
-        toast.error(t("error.sessionExpired"));
-        logout();
-        return false;
+        throw new Error(t("error.sessionInvalid"));
       }
     } catch (error) {
       setLoginError(t("error.connectionFailed"));
@@ -157,14 +77,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [navigate, logout, t, cleanupPopup]);
+  }, [navigate, t]);
 
   useEffect(() => {
     const storedUserId = localStorage.getItem('userId');
     if (storedUserId && !isAuthenticated) {
       checkSession(storedUserId);
     }
-  }, []);
+  }, [isAuthenticated, checkSession]);
 
   const contextValue = {
     userId,
@@ -173,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     login,
     logout,
     checkSession,
-    loginError
+    loginError,
   };
 
   return (
