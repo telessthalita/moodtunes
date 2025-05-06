@@ -4,8 +4,8 @@ import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 import { useTranslation } from './LanguageContext';
 
-// Define API base URL
-const API_BASE_URL = 'https://moodtunes-backend.onrender.com';
+// Updated API base URL
+const API_BASE_URL = 'https://moodtunes-htki.onrender.com';
 
 // Types for messages
 type MessageRole = 'user' | 'assistant';

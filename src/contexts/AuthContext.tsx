@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
 
-const API_BASE_URL = 'https://moodtunes-backend.onrender.com';
+// Updated API base URL
+const API_BASE_URL = 'https://moodtunes-htki.onrender.com';
 
 type AuthContextType = {
   userId: string | null;
@@ -25,11 +26,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authPopup, setAuthPopup] = useState<Window | null>(null);
-
-
-
-
-
 
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
