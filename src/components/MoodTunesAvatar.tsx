@@ -18,7 +18,7 @@ const MoodTunesAvatar: React.FC<MoodTunesAvatarProps> = ({ size = "md" }) => {
   return (
     <Avatar className={`${sizeClass[size]} border-2 border-[#1DB954]`}>
       <AvatarImage 
-        src="/lovable-uploads/moodtunes-avatar.png" 
+        src="/lovable-uploads/ddab6411-6b81-4162-9bf4-8f5fb2e62f85.png" 
         alt="MoodTunes" 
       />
       <AvatarFallback className="bg-[#1E1B2E]">
