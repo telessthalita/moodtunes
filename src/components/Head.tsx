@@ -6,14 +6,14 @@ const Head = () => {
     // Update the document title
     document.title = 'MoodTunes';
     
-    // Update favicon link if it doesn't exist
+    // Update favicon link
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.head.appendChild(link);
     }
-    link.href = '/src/assets/favicon.png';
+    link.href = '/lovable-uploads/moodtunes-avatar.png';
     link.type = 'image/png';
   }, []);
 
