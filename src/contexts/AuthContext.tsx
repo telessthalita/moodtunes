@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -26,6 +27,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authPopup, setAuthPopup] = useState<Window | null>(null);
+
+  // Handle direct callbacks from Spotify authentication
+  useEffect(() => {
+    // Check if the URL contains a user_id parameter (from redirect)
+    const params = new URLSearchParams(window.location.search);
+    const callbackUserId = params.get("user_id");
+
+    if (callbackUserId) {
+      console.log("Found user_id in URL parameters:", callbackUserId);
+      checkSession(callbackUserId)
+        .then(success => {
+          if (success) {
+            // Clean up URL parameters
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            navigate('/chat');
+          }
+        });
+    }
+  }, []);
 
   useEffect(() => {
     const handleAuthMessage = (event: MessageEvent) => {
@@ -58,8 +79,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }, 1000);
 
+    // Special handling for mobile browsers
+    const detectRedirect = () => {
+      try {
+        // For mobile browsers, check if we're back from authentication
+        const params = new URLSearchParams(window.location.search);
+        const callbackUserId = params.get("user_id");
+        
+        if (callbackUserId) {
+          console.log("Detected user_id in URL after mobile auth:", callbackUserId);
+          checkSession(callbackUserId)
+            .then(success => {
+              if (success) {
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+              }
+            });
+          
+          // Close any existing popup
+          if (authPopup && !authPopup.closed) {
+            authPopup.close();
+          }
+          
+          setAuthPopup(null);
+          clearInterval(timer);
+        }
+      } catch (e) {
+        console.warn("Error checking mobile redirect:", e);
+      }
+    };
+
+    // Check for mobile redirects
+    window.addEventListener('focus', detectRedirect);
+
     const timeout = setTimeout(() => {
       clearInterval(timer);
+      window.removeEventListener('focus', detectRedirect);
 
       if (authPopup && !authPopup.closed) {
         authPopup.close();
@@ -74,6 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       clearInterval(timer);
       clearTimeout(timeout);
+      window.removeEventListener('focus', detectRedirect);
     };
   }, [authPopup, isAuthenticated]);
 
@@ -82,18 +138,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Reset any previous errors
     setLoginError(null);
 
-    const width = 450;
-    const height = 730;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-
+    // Check if we're on mobile
+    const isMobile = window.innerWidth <= 768;
     const authUrl = `${API_BASE_URL}/spotify/login`;
     console.log("Auth URL:", authUrl);
 
     try {
+      // Close any existing popup
       if (authPopup && !authPopup.closed) {
         authPopup.close();
       }
+
+      if (isMobile) {
+        // For mobile browsers, use direct redirect instead of popup
+        console.log("Using direct redirect for mobile authentication");
+        setIsLoading(true);
+        // Store that we're in the process of authentication
+        sessionStorage.setItem('authInProgress', 'true');
+        // Redirect directly to auth URL
+        window.location.href = authUrl;
+        return;
+      }
+
+      // For desktop browsers, use popup
+      const width = 450;
+      const height = 730;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
 
       const popup = window.open(
         authUrl,
@@ -129,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
             }
           } catch (e) {
+            // Ignore cross-origin errors
           }
         }, 1000);
 
@@ -146,6 +218,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     localStorage.removeItem('userId');
+    sessionStorage.removeItem('authInProgress');
     setUserId(null);
     setIsAuthenticated(false);
     setLoginError(null);
@@ -166,15 +239,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.ok) {
         console.log("Session is valid");
         localStorage.setItem('userId', id);
+        sessionStorage.removeItem('authInProgress');
         setUserId(id);
         setIsAuthenticated(true);
         setLoginError(null);
+        
         if (authPopup && !authPopup.closed) {
           authPopup.close();
           setAuthPopup(null);
         }
 
         setIsLoading(false);
+        
+        // Explicitly navigate to chat route on successful authentication
+        navigate('/chat');
         return true;
       } else {
         const errorText = await response.text();
@@ -188,12 +266,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Session check error:", error);
       setLoginError("Erro de conexão: " + (error instanceof Error ? error.message : String(error)));
       toast.error(t("error.connectionFailed"));
-
-
       setIsLoading(false);
       return false;
     }
-  }, [logout, t, authPopup]);
+  }, [logout, t, authPopup, navigate]);
+  
   const contextValue = {
     userId,
     isAuthenticated,

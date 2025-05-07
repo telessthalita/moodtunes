@@ -10,6 +10,7 @@ import { Send, LogOut, Loader } from "lucide-react";
 import MessageBubble from "../components/MessageBubble";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import MoodTunesAvatar from "../components/MoodTunesAvatar";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -49,7 +50,10 @@ const Chat = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
       <div className="p-4 flex justify-between items-center border-b border-[#2D2254]">
-        <h1 className="text-xl font-bold text-[#1DB954]">MoodTunes</h1>
+        <div className="flex items-center gap-3">
+          <MoodTunesAvatar size="sm" />
+          <h1 className="text-xl font-bold text-[#1DB954]">MoodTunes</h1>
+        </div>
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
           <Button 
@@ -67,6 +71,9 @@ const Chat = () => {
         <div className="flex-1 space-y-4 mb-4">
           {messages.length === 0 ? (
             <div className="text-center py-10">
+              <div className="flex justify-center mb-6">
+                <MoodTunesAvatar size="lg" />
+              </div>
               <h2 className="text-2xl font-bold mb-4">{t("chat.welcome")}</h2>
               <p className="text-gray-400">{t("chat.startPrompt")}</p>
             </div>

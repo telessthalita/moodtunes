@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Music, Sparkles, AlertCircle } from "lucide-react";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
+import MoodTunesAvatar from "../components/MoodTunesAvatar";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -42,6 +43,12 @@ const Index = () => {
   useEffect(() => {
     if (isAuthenticated) {
       navigate("/chat");
+    }
+    
+    // Check if we were in the middle of authentication (for mobile flow)
+    const authInProgress = sessionStorage.getItem('authInProgress');
+    if (authInProgress) {
+      toast.info("Verificando status da autenticação...");
     }
   }, [isAuthenticated, navigate]);
 
@@ -81,6 +88,10 @@ const Index = () => {
       </div>
 
       <div className="flex flex-col items-center justify-center flex-1 w-full max-w-md mx-auto text-center px-4 z-10">
+        <div className="relative mb-6">
+          <MoodTunesAvatar size="xl" />
+        </div>
+
         <div className="relative">
           <h1 className="text-6xl md:text-7xl font-bold mb-2 bg-gradient-to-r from-[#1DB954] via-teal-400 to-[#1DB954] bg-clip-text text-transparent animate-pulse-slow">
             MoodTunes
@@ -93,13 +104,6 @@ const Index = () => {
         <p className="text-xl md:text-2xl mb-12 text-gray-300 max-w-sm animate-fade-in">
           {t("landing.tagline")}
         </p>
-
-        <div className="mb-16 relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-[#1DB954]/20 to-purple-500/20 rounded-full blur-lg transform scale-110 animate-pulse-slow"></div>
-          <div className="relative animate-float">
-            <Music size={100} className="text-[#1DB954] mx-auto" />
-          </div>
-        </div>
 
         {loginError && (
           <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-white flex items-center gap-2">
