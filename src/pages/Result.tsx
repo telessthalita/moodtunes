@@ -10,6 +10,7 @@ import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { getMoodEmoji } from "../utils/moodHelper";
+import MoodVisualizer from "../components/MoodVisualizer";
 
 const Result = () => {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ const Result = () => {
             </Button>
           </div>
         ) : (
-          <div className="w-full space-y-8">
+          <div className="w-full space-y-8 animate-fade-in">
             <div className="text-center">
               <h2 className="text-3xl font-bold mb-2">{t("result.yourMood")}</h2>
               <div className="text-5xl my-4">
@@ -88,6 +89,9 @@ const Result = () => {
               </div>
               <p className="text-gray-400 max-w-lg mx-auto">{t("result.playlistReady")}</p>
             </div>
+
+            {/* Add the mood visualizer here */}
+            <MoodVisualizer />
 
             <Card className="bg-[#2D2254] border-[#1DB954]/30">
               <CardHeader>
