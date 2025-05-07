@@ -32,15 +32,28 @@ const Result = () => {
   const getPlaylistId = () => {
     if (!playlistUrl) return null;
     try {
-      const url = new URL(playlistUrl);
-      const parts = url.pathname.split('/');
-      return parts[parts.length - 1];
+      // Handle Spotify URLs correctly
+      if (playlistUrl.includes('spotify.com')) {
+        // Remove any query parameters from the URL
+        const cleanUrl = playlistUrl.split('?')[0];
+        // Extract the playlist ID
+        const parts = cleanUrl.split('/');
+        return parts[parts.length - 1];
+      }
+      return null;
     } catch (e) {
+      console.error("Error extracting playlist ID:", e);
       return null;
     }
   };
 
   const playlistId = getPlaylistId();
+  
+  // For debugging
+  useEffect(() => {
+    console.log("Playlist URL:", playlistUrl);
+    console.log("Extracted Playlist ID:", playlistId);
+  }, [playlistUrl, playlistId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
@@ -86,7 +99,7 @@ const Result = () => {
                   <div className="w-full max-w-2xl aspect-video mb-6">
                     <iframe
                       title="Spotify Playlist"
-                      src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`}
+                      src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
                       width="100%"
                       height="100%"
                       frameBorder="0"

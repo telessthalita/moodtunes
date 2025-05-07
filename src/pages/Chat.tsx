@@ -19,6 +19,7 @@ const Chat = () => {
   const { messages, sendMessage, isLoading, isFinished } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,7 +38,12 @@ const Chat = () => {
   useEffect(() => {
     // Scroll to bottom when new messages appear
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    
+    // Maintain focus on input when messages are updated
+    if (!isLoading && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [messages, isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,11 +103,13 @@ const Chat = () => {
         
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={t("chat.inputPlaceholder")}
             disabled={isLoading}
             className="bg-[#2D2254] border-[#1DB954]/30 focus:border-[#1DB954] text-white"
+            autoFocus
           />
           <Button 
             type="submit"
