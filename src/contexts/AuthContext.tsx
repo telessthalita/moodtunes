@@ -7,6 +7,9 @@ import { useTranslation } from './LanguageContext';
 // Updated API base URL
 const API_BASE_URL = 'https://moodtunes-htki.onrender.com';
 
+// Session timeout in milliseconds (24 hours)
+const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
+
 type AuthContextType = {
   userId: string | null;
   isAuthenticated: boolean;
@@ -22,8 +25,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const [userId, setUserId] = useState<string | null>(localStorage.getItem('userId'));
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!localStorage.getItem('userId'));
+  const [userId, setUserId] = useState<string | null>(() => {
+    // Check if session is still valid based on timestamp
+    const storedUserId = localStorage.getItem('userId');
+    const sessionTimestamp = localStorage.getItem('sessionTimestamp');
+    
+    if (storedUserId && sessionTimestamp) {
+      const now = new Date().getTime();
+      const timestamp = parseInt(sessionTimestamp, 10);
+      
+      if (now - timestamp < SESSION_TIMEOUT) {
+        return storedUserId;
+      } else {
+        // Session expired, clean up
+        localStorage.removeItem('userId');
+        localStorage.removeItem('sessionTimestamp');
+        return null;
+      }
+    }
+    return null;
+  });
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!userId);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [authPopup, setAuthPopup] = useState<Window | null>(null);
@@ -67,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Handle popup window for authentication
   useEffect(() => {
     if (!authPopup || isAuthenticated) return;
 
@@ -218,6 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = useCallback(() => {
     localStorage.removeItem('userId');
+    localStorage.removeItem('sessionTimestamp');
     sessionStorage.removeItem('authInProgress');
     setUserId(null);
     setIsAuthenticated(false);
@@ -228,6 +253,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
     console.log("Checking session for ID:", id);
+
+    // Check if we already have a valid session for this ID
+    if (userId === id && isAuthenticated) {
+      console.log("Using existing valid session");
+      setIsLoading(false);
+      return true;
+    }
+
     try {
       setIsLoading(true);
       const sessionUrl = `${API_BASE_URL}/session_user?user_id=${id}`;
@@ -238,8 +271,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (response.ok) {
         console.log("Session is valid");
+        // Store the session with a timestamp
         localStorage.setItem('userId', id);
+        localStorage.setItem('sessionTimestamp', String(new Date().getTime()));
         sessionStorage.removeItem('authInProgress');
+        
         setUserId(id);
         setIsAuthenticated(true);
         setLoginError(null);
@@ -269,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return false;
     }
-  }, [logout, t, authPopup, navigate]);
+  }, [userId, isAuthenticated, navigate, logout, t, authPopup]);
   
   const contextValue = {
     userId,

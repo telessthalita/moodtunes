@@ -15,19 +15,14 @@ import MoodTunesAvatar from "../components/MoodTunesAvatar";
 const Chat = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { userId, checkSession, logout } = useAuth();
+  const { userId, logout } = useAuth(); // Removida a referência a checkSession
   const { messages, sendMessage, isLoading, isFinished } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (userId) checkSession(userId);
-    }, 60000); // Check session every minute
-    
-    return () => clearInterval(interval);
-  }, [userId, checkSession]);
-
+  // Removemos a verificação periódica da sessão
+  
   useEffect(() => {
     if (isFinished) {
       navigate("/result");
@@ -37,6 +32,10 @@ const Chat = () => {
   useEffect(() => {
     // Scroll to bottom when new messages appear
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Manter o foco no input
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
   }, [messages]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -97,6 +96,7 @@ const Chat = () => {
         
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={t("chat.inputPlaceholder")}

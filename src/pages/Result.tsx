@@ -19,6 +19,7 @@ const Result = () => {
   
   useEffect(() => {
     if (userId && !mood && !isLoading) {
+      console.log("Loading mood result for user:", userId);
       loadMoodResult(userId);
     }
   }, [userId, mood, isLoading, loadMoodResult]);
@@ -28,19 +29,50 @@ const Result = () => {
     navigate("/chat");
   };
 
-  // Extract Spotify playlist ID from URL
+  // Melhoria: Função mais robusta para extrair o ID da playlist do Spotify
   const getPlaylistId = () => {
-    if (!playlistUrl) return null;
+    if (!playlistUrl) {
+      console.log("No playlist URL available");
+      return null;
+    }
+    
     try {
+      console.log("Extracting playlist ID from:", playlistUrl);
+      
+      // Tentar extrair usando a URL completa
+      if (playlistUrl.includes('spotify.com/playlist/')) {
+        const parts = playlistUrl.split('spotify.com/playlist/');
+        if (parts.length > 1) {
+          const id = parts[1].split('?')[0].split('/')[0];
+          console.log("Extracted playlist ID:", id);
+          return id;
+        }
+      }
+      
+      // Tentar extrair diretamente se parece ser apenas o ID
+      if (playlistUrl.length > 10 && !playlistUrl.includes('/')) {
+        console.log("Using direct ID:", playlistUrl);
+        return playlistUrl;
+      }
+      
+      // Última tentativa usando URL API
       const url = new URL(playlistUrl);
-      const parts = url.pathname.split('/');
-      return parts[parts.length - 1];
+      const pathParts = url.pathname.split('/');
+      const id = pathParts[pathParts.indexOf('playlist') + 1];
+      console.log("Extracted ID from URL object:", id);
+      return id;
     } catch (e) {
+      console.error("Error extracting playlist ID:", e);
+      // Se for um ID direto, retorná-lo
+      if (playlistUrl && playlistUrl.match(/^[a-zA-Z0-9]{22}$/)) {
+        return playlistUrl;
+      }
       return null;
     }
   };
 
   const playlistId = getPlaylistId();
+  console.log("Final playlist ID for embedding:", playlistId);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
@@ -82,11 +114,11 @@ const Result = () => {
                 <CardDescription>{t("result.enjoyMusic")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center">
-                {playlistId && (
+                {playlistId ? (
                   <div className="w-full max-w-2xl aspect-video mb-6">
                     <iframe
                       title="Spotify Playlist"
-                      src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`}
+                      src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
                       width="100%"
                       height="100%"
                       frameBorder="0"
@@ -94,6 +126,15 @@ const Result = () => {
                       loading="lazy"
                       className="rounded-lg"
                     ></iframe>
+                  </div>
+                ) : (
+                  <div className="text-center p-4 mb-6 border border-dashed border-[#1DB954]/30 rounded-lg">
+                    <p className="text-[#1DB954]">
+                      {t("result.playlistLoadingError")}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      URL: {playlistUrl || "Nenhuma URL disponível"}
+                    </p>
                   </div>
                 )}
 
