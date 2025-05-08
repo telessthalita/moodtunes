@@ -9,13 +9,11 @@ import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import MoodTunesAvatar from "../components/MoodTunesAvatar";
 import { toast } from "sonner";
-import { useIsMobile } from "../hooks/use-mobile";
 
 const Index = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { login, isLoading, checkSession, isAuthenticated, loginError } = useAuth();
-  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Check if the URL contains a user_id parameter (from callback)
@@ -50,17 +48,7 @@ const Index = () => {
     // Check if we were in the middle of authentication (for mobile flow)
     const authInProgress = sessionStorage.getItem('authInProgress');
     if (authInProgress) {
-      const lastAuthAttempt = sessionStorage.getItem('lastAuthAttempt');
-      const now = new Date().getTime();
-      
-      // Only show toast if the last attempt was recent (within 3 minutes)
-      if (lastAuthAttempt && now - parseInt(lastAuthAttempt, 10) < 180000) {
-        toast.info("Verificando status da autenticação...");
-      } else {
-        // Clear stale auth progress data
-        sessionStorage.removeItem('authInProgress');
-        sessionStorage.removeItem('lastAuthAttempt');
-      }
+      toast.info("Verificando status da autenticação...");
     }
   }, [isAuthenticated, navigate]);
 
@@ -140,13 +128,13 @@ const Index = () => {
                 <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="#1DB954" />
                 <path d="M16.7375 17.0125C16.5875 17.275 16.3125 17.4 16.05 17.4C15.9125 17.4 15.775 17.3625 15.65 17.2875C14.575 16.6375 13.3 16.2875 11.9625 16.2875C10.9 16.2875 9.85 16.5 8.8625 16.925C8.5 17.0625 8.0875 16.9125 7.9375 16.55C7.8 16.1875 7.95 15.775 8.3125 15.625C9.475 15.125 10.7125 14.8625 12 14.8625C13.575 14.8625 15.075 15.275 16.3625 16.05C16.7 16.25 16.7875 16.6875 16.7375 17.0125ZM17.8875 14.1C17.7 14.4375 17.35 14.6 16.9875 14.6C16.825 14.6 16.6625 14.5625 16.5125 14.4625C15.2125 13.675 13.6375 13.2625 11.9875 13.2625C10.675 13.2625 9.375 13.5125 8.2 14C7.775 14.15 7.3125 13.9 7.1625 13.475C7.0125 13.05 7.2625 12.5875 7.6875 12.4375C9.0625 11.8625 10.5125 11.5625 12.0125 11.5625C14 11.5625 15.8875 12.05 17.4625 13C17.8375 13.225 17.9875 13.7125 17.8875 14.1ZM19.1125 10.8375C18.9 11.2375 18.4875 11.4375 18.075 11.4375C17.8875 11.4375 17.7 11.3875 17.525 11.275C16 10.3625 14.0125 9.85 11.975 9.85C10.4875 9.85 9.025 10.125 7.6625 10.675C7.1875 10.85 6.675 10.5875 6.5 10.1125C6.325 9.6375 6.5875 9.125 7.0625 8.95C8.625 8.3125 10.3 8 12 8C14.35 8 16.6625 8.6 18.4375 9.6625C18.8625 9.925 19.0625 10.4125 19.1125 10.8375Z" fill="white" />
               </svg>
-              {isMobile ? t("landing.loginButtonMobile") || "Continuar com Spotify" : t("landing.loginButton")}
+              {t("landing.loginButton")}
             </>
           )}
         </Button>
 
         <p className="mt-8 text-sm text-gray-400 max-w-xs mx-auto animate-fade-in-delay">
-          {isMobile ? t("landing.instructionMobile") || "Você será redirecionado para autenticar com o Spotify" : t("landing.instruction")}
+          {t("landing.instruction")}
         </p>
       </div>
 

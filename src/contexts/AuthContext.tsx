@@ -173,22 +173,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         authPopup.close();
       }
 
-      setIsLoading(true);
-      
       if (isMobile) {
         // For mobile browsers, use direct redirect instead of popup
         console.log("Using direct redirect for mobile authentication");
+        setIsLoading(true);
         // Store that we're in the process of authentication
         sessionStorage.setItem('authInProgress', 'true');
-        sessionStorage.setItem('lastAuthAttempt', String(new Date().getTime()));
-        
-        // Add a return_to parameter to tell the server where to redirect back
-        const currentUrl = window.location.origin;
-        const redirectAuthUrl = `${authUrl}?return_to=${encodeURIComponent(currentUrl)}`;
-        console.log("Redirecting to:", redirectAuthUrl);
-        
         // Redirect directly to auth URL
-        window.location.href = redirectAuthUrl;
+        window.location.href = authUrl;
         return;
       }
 
@@ -213,6 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log("Auth popup opened successfully");
+      setIsLoading(true);
       setAuthPopup(popup);
 
       popup.focus();
@@ -251,7 +244,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('userId');
     localStorage.removeItem('sessionTimestamp');
     sessionStorage.removeItem('authInProgress');
-    sessionStorage.removeItem('lastAuthAttempt');
     setUserId(null);
     setIsAuthenticated(false);
     setLoginError(null);
@@ -283,7 +275,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('userId', id);
         localStorage.setItem('sessionTimestamp', String(new Date().getTime()));
         sessionStorage.removeItem('authInProgress');
-        sessionStorage.removeItem('lastAuthAttempt');
         
         setUserId(id);
         setIsAuthenticated(true);
