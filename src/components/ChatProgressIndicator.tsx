@@ -18,6 +18,7 @@ const ChatProgressIndicator = ({ userMessageCount }: ChatProgressIndicatorProps)
     } else if (remaining === 1) {
       return t("chat.oneMoreMessage");
     } else {
+      // Fix: Use object format for placeholder instead of passing two arguments
       return t("chat.messagesRemaining", { count: remaining });
     }
   };
