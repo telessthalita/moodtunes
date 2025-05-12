@@ -4,12 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
 import { logInfo, logError, logWarning } from '../utils/logUtils';
-
-// Updated API base URL
-const API_BASE_URL = 'https://moodtunes-end.onrender.com';
-
-// Session timeout in milliseconds (24 hours)
-const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
+import { API_BASE_URL, isSessionValid, clearAuthData } from '../utils/authUtils';
+import { useAuthPopup } from '../hooks/useAuthPopup';
 
 type AuthContextType = {
   userId: string | null;
@@ -33,21 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const storedUserId = localStorage.getItem('userId');
       const sessionTimestamp = localStorage.getItem('sessionTimestamp');
       
-      if (storedUserId && sessionTimestamp) {
-        const now = new Date().getTime();
-        const timestamp = parseInt(sessionTimestamp, 10);
-        
-        if (now - timestamp < SESSION_TIMEOUT) {
-          logInfo(`Restoring session for user: ${storedUserId}`);
-          return storedUserId;
-        } else {
-          logInfo('Session expired, cleaning up');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('sessionTimestamp');
-          return null;
-        }
+      if (storedUserId && isSessionValid(sessionTimestamp)) {
+        logInfo(`Restoring session for user: ${storedUserId}`);
+        return storedUserId;
+      } else {
+        logInfo('Session expired or invalid, cleaning up');
+        clearAuthData();
+        return null;
       }
-      return null;
     } catch (err) {
       logError('Error restoring session', err);
       return null;
@@ -57,218 +46,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!userId);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [authPopup, setAuthPopup] = useState<Window | null>(null);
-
-  // Handle direct callbacks from Spotify authentication
-  useEffect(() => {
-    // Check if the URL contains a user_id parameter (from redirect)
-    const params = new URLSearchParams(window.location.search);
-    const callbackUserId = params.get("user_id");
-
-    if (callbackUserId) {
-      logInfo("Found user_id in URL parameters", callbackUserId);
-      checkSession(callbackUserId)
-        .then(success => {
-          if (success) {
-            // Clean up URL parameters
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
-            navigate('/chat', { replace: true });
-          }
-        });
-    }
-  }, []);
-
-  // Message event listener for auth popup
-  useEffect(() => {
-    const handleAuthMessage = (event: MessageEvent) => {
-      logInfo("Received message event", event.data);
-
-      if (event.data && event.data.user_id) {
-        const userId = event.data.user_id;
-        logInfo("Received user_id from message", userId);
-        checkSession(userId);
-      }
-    };
-
-    window.addEventListener('message', handleAuthMessage);
-    logInfo("Auth message listener setup completed");
-
-    return () => {
-      window.removeEventListener('message', handleAuthMessage);
-      logInfo("Auth message listener removed");
-    };
-  }, []);
-
-  // Handle popup window for authentication
-  useEffect(() => {
-    if (!authPopup || isAuthenticated) return;
-
-    const timer = setInterval(() => {
-      if (authPopup.closed) {
-        logInfo("Auth popup was closed by user");
-        clearInterval(timer);
-        setIsLoading(false);
-        setAuthPopup(null);
-      }
-    }, 1000);
-
-    // Special handling for mobile browsers
-    const detectRedirect = () => {
-      try {
-        // For mobile browsers, check if we're back from authentication
-        const params = new URLSearchParams(window.location.search);
-        const callbackUserId = params.get("user_id");
-        
-        if (callbackUserId) {
-          logInfo("Detected user_id in URL after mobile auth", callbackUserId);
-          checkSession(callbackUserId)
-            .then(success => {
-              if (success) {
-                // Clean up URL
-                window.history.replaceState({}, document.title, window.location.pathname);
-              }
-            });
-          
-          // Close any existing popup
-          if (authPopup && !authPopup.closed) {
-            authPopup.close();
-          }
-          
-          setAuthPopup(null);
-          clearInterval(timer);
-        }
-      } catch (e) {
-        logError("Error checking mobile redirect", e);
-      }
-    };
-
-    // Check for mobile redirects
-    window.addEventListener('focus', detectRedirect);
-
-    const timeout = setTimeout(() => {
-      clearInterval(timer);
-      window.removeEventListener('focus', detectRedirect);
-
-      if (authPopup && !authPopup.closed) {
-        authPopup.close();
-      }
-
-      setIsLoading(false);
-      setLoginError(t("error.authTimeout"));
-      toast.error(t("error.authTimeout"));
-      setAuthPopup(null);
-    }, 120000);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(timeout);
-      window.removeEventListener('focus', detectRedirect);
-      logInfo("Auth popup listener cleanup completed");
-    };
-  }, [authPopup, isAuthenticated, t]);
-
-  // Login function - uses the new API endpoint
-  const login = useCallback(() => {
-    logInfo("Starting login process");
-    // Reset any previous errors
-    setLoginError(null);
-
-    // Check if we're on mobile
-    const isMobile = window.innerWidth <= 768;
-    const authUrl = `${API_BASE_URL}/login`;
-    logInfo("Auth URL", authUrl);
-
-    try {
-      // Close any existing popup
-      if (authPopup && !authPopup.closed) {
-        authPopup.close();
-      }
-
-      if (isMobile) {
-        // For mobile browsers, use direct redirect instead of popup
-        logInfo("Using direct redirect for mobile authentication");
-        setIsLoading(true);
-        // Store that we're in the process of authentication
-        sessionStorage.setItem('authInProgress', 'true');
-        // Redirect directly to auth URL
-        window.location.href = authUrl;
-        return;
-      }
-
-      // For desktop browsers, use popup
-      const width = 450;
-      const height = 730;
-      const left = window.screen.width / 2 - width / 2;
-      const top = window.screen.height / 2 - height / 2;
-
-      const popup = window.open(
-        authUrl,
-        'SpotifyLogin',
-        `width=${width},height=${height},top=${top},left=${left}`
-      );
-
-      if (!popup || popup.closed) {
-        logError("Popup was blocked or failed to open");
-        setLoginError(t("error.popupBlocked"));
-        toast.error(t("error.popupBlocked"));
-        setIsLoading(false);
-        return;
-      }
-
-      logInfo("Auth popup opened successfully");
-      setIsLoading(true);
-      setAuthPopup(popup);
-
-      popup.focus();
-
-      try {
-        const checkRedirect = setInterval(() => {
-          try {
-            if (popup.location.href.includes('user_id=')) {
-              clearInterval(checkRedirect);
-              const url = new URL(popup.location.href);
-              const userId = url.searchParams.get('user_id');
-              if (userId) {
-                logInfo("Detected user_id in popup URL", userId);
-                checkSession(userId);
-                popup.close();
-              }
-            }
-          } catch (e) {
-            // Ignore cross-origin errors
-          }
-        }, 1000);
-
-        setTimeout(() => clearInterval(checkRedirect), 120000);
-      } catch (e) {
-        logError("Could not set up redirect detection", e);
-      }
-    } catch (error) {
-      logError("Error opening auth popup", error);
-      setLoginError(`${t("error.authPopup")}: ${error instanceof Error ? error.message : String(error)}`);
-      toast.error(t("error.authPopup"));
-      setIsLoading(false);
-    }
-  }, [authPopup, t]);
-
-  // Logout function - uses the new API endpoint
-  const logout = useCallback(() => {
-    logInfo("Logging out user", { userId });
-    
-    // Clear local storage
-    localStorage.removeItem('userId');
-    localStorage.removeItem('sessionTimestamp');
-    sessionStorage.removeItem('authInProgress');
-    
-    // Reset state
-    setUserId(null);
-    setIsAuthenticated(false);
-    setLoginError(null);
-    
-    // Redirect to logout endpoint to clear server-side session
-    window.location.href = `${API_BASE_URL}/logout`;
-  }, [userId]);
 
   // Check session validity
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
@@ -301,11 +78,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(true);
         setLoginError(null);
         
-        if (authPopup && !authPopup.closed) {
-          authPopup.close();
-          setAuthPopup(null);
-        }
-
         setIsLoading(false);
         
         // Explicitly navigate to chat route on successful authentication
@@ -317,9 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toast.error(t("error.sessionExpired"));
         
         // Clean up any local session data
-        localStorage.removeItem('userId');
-        localStorage.removeItem('sessionTimestamp');
-        sessionStorage.removeItem('authInProgress');
+        clearAuthData();
         
         setUserId(null);
         setIsAuthenticated(false);
@@ -333,7 +103,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return false;
     }
-  }, [userId, isAuthenticated, navigate, t, authPopup]);
+  }, [userId, isAuthenticated, navigate, t]);
+
+  const { launchAuthPopup, redirectToAuth } = useAuthPopup((id) => checkSession(id));
+
+  // Handle direct callbacks from Spotify authentication
+  useEffect(() => {
+    // Check if the URL contains a user_id parameter (from redirect)
+    const params = new URLSearchParams(window.location.search);
+    const callbackUserId = params.get("user_id");
+
+    if (callbackUserId) {
+      logInfo("Found user_id in URL parameters", callbackUserId);
+      checkSession(callbackUserId)
+        .then(success => {
+          if (success) {
+            // Clean up URL parameters
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            navigate('/chat', { replace: true });
+          }
+        });
+    }
+  }, [checkSession, navigate]);
+
+  // Login function - uses the new API endpoint
+  const login = useCallback(() => {
+    logInfo("Starting login process");
+    // Reset any previous errors
+    setLoginError(null);
+
+    // Check if we're on mobile
+    const isMobile = window.innerWidth <= 768;
+    const authUrl = `${API_BASE_URL}/login`;
+    logInfo("Auth URL", authUrl);
+
+    if (isMobile) {
+      redirectToAuth(authUrl);
+      return;
+    }
+
+    // For desktop browsers, use popup
+    launchAuthPopup(authUrl);
+
+  }, [launchAuthPopup, redirectToAuth]);
+
+  // Logout function - uses the new API endpoint
+  const logout = useCallback(() => {
+    logInfo("Logging out user", { userId });
+    
+    // Clear local storage
+    clearAuthData();
+    
+    // Reset state
+    setUserId(null);
+    setIsAuthenticated(false);
+    setLoginError(null);
+    
+    // Redirect to logout endpoint to clear server-side session
+    window.location.href = `${API_BASE_URL}/logout`;
+  }, [userId]);
   
   // Use memo to prevent unnecessary re-renders of context consumers
   const contextValue = useMemo(() => ({

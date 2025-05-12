@@ -1,29 +1,23 @@
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useChat } from "../contexts/ChatContext";
 import { Button } from "../components/ui/button";
-import { Music, Loader, RefreshCw, ExternalLink, LogOut } from "lucide-react";
+import { Loader, RefreshCw } from "lucide-react";
 import Footer from "../components/Footer";
-import LanguageSwitcher from "../components/LanguageSwitcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { getMoodEmoji } from "../utils/moodHelper";
-import MoodTunesAvatar from "../components/MoodTunesAvatar";
-import { logInfo, logWarning, logError } from "../utils/logUtils";
-
-// Regular expressions for extracting Spotify playlist ID
-const SPOTIFY_PLAYLIST_REGEX = [
-  /spotify\.com\/playlist\/([a-zA-Z0-9]{22})/,  // Standard URL format
-  /spotify:playlist:([a-zA-Z0-9]{22})/,         // URI format
-  /^([a-zA-Z0-9]{22})$/                         // Direct ID
-];
+import { getPlaylistId } from "../utils/spotifyUtils";
+import { logInfo, logError } from "../utils/logUtils";
+import ApplicationHeader from "../components/ApplicationHeader";
+import MoodDisplay from "../components/MoodDisplay";
+import PlaylistEmbed from "../components/PlaylistEmbed";
 
 const Result = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { userId, logout } = useAuth();
+  const { userId } = useAuth();
   const { mood, playlistUrl, isLoading, loadMoodResult, resetChat } = useChat();
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   
@@ -46,77 +40,15 @@ const Result = () => {
     }
   }, [playlistUrl]);
 
-  // Improved function for extracting Spotify playlist ID 
-  const getPlaylistId = useCallback((url: string): string | null => {
-    logInfo("Attempting to parse playlist URL:", url);
-    
-    try {
-      // Try each regex pattern
-      for (const regex of SPOTIFY_PLAYLIST_REGEX) {
-        const match = url.match(regex);
-        if (match && match[1]) {
-          logInfo("Matched playlist ID with pattern:", regex);
-          return match[1];
-        }
-      }
-      
-      // Try parsing as URL
-      try {
-        const parsedUrl = new URL(url);
-        const pathSegments = parsedUrl.pathname.split('/');
-        const playlistIndex = pathSegments.indexOf('playlist');
-        
-        if (playlistIndex !== -1 && playlistIndex + 1 < pathSegments.length) {
-          const id = pathSegments[playlistIndex + 1];
-          if (id && id.length === 22) {
-            logInfo("Extracted ID from URL path segments:", id);
-            return id;
-          }
-        }
-      } catch (e) {
-        logWarning("URL parsing failed:", e);
-      }
-      
-      logWarning("Could not extract playlist ID from:", url);
-      return null;
-    } catch (e) {
-      logError("Error extracting playlist ID:", e);
-      return null;
-    }
-  }, []);
-
   const handleStartOver = useCallback(() => {
     logInfo("Starting over, resetting chat");
     resetChat();
     navigate("/chat", { replace: true });
   }, [resetChat, navigate]);
 
-  // Memoized playlist embed URL for better performance
-  const playlistEmbedUrl = useMemo(() => {
-    if (!playlistId) return null;
-    return `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`;
-  }, [playlistId]);
-
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
-      <div className="p-4 flex justify-between items-center border-b border-[#2D2254]">
-        <div className="flex items-center gap-3">
-          <MoodTunesAvatar size="sm" />
-          <h1 className="text-xl font-bold text-[#1DB954]">MoodTunes</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher />
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={logout}
-            className="text-gray-400 hover:text-white transition-colors"
-            aria-label="Logout"
-          >
-            <LogOut size={20} />
-          </Button>
-        </div>
-      </div>
+      <ApplicationHeader />
 
       <div className="flex-1 p-4 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
         {isLoading ? (
@@ -137,13 +69,7 @@ const Result = () => {
           </div>
         ) : (
           <div className="w-full space-y-8 animate-fade-in">
-            <div className="text-center">
-              <h2 className="text-3xl font-bold mb-2">{t("result.yourMood")}</h2>
-              <div className="text-5xl my-4">
-                {getMoodEmoji(mood)} <span className="font-medium">{mood}</span>
-              </div>
-              <p className="text-gray-400 max-w-lg mx-auto">{t("result.playlistReady")}</p>
-            </div>
+            <MoodDisplay mood={mood} />
 
             <Card className="bg-[#2D2254] border-[#1DB954]/30">
               <CardHeader>
@@ -151,42 +77,9 @@ const Result = () => {
                 <CardDescription>{t("result.enjoyMusic")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center">
-                {playlistEmbedUrl ? (
-                  <div className="w-full max-w-2xl aspect-video mb-6">
-                    <iframe
-                      title="Spotify Playlist"
-                      src={playlistEmbedUrl}
-                      width="100%"
-                      height="100%"
-                      frameBorder="0"
-                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                      loading="lazy"
-                      className="rounded-lg"
-                    ></iframe>
-                  </div>
-                ) : (
-                  <div className="text-center p-4 mb-6 border border-dashed border-[#1DB954]/30 rounded-lg">
-                    <p className="text-[#1DB954]">
-                      {t("result.playlistLoadingError")}
-                    </p>
-                    <p className="text-sm text-gray-400 mt-2">
-                      URL: {playlistUrl || t("result.noUrlAvailable")}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap gap-4 justify-center mt-2">
-                  <Button 
-                    onClick={() => {
-                      logInfo("Opening Spotify playlist in new tab", { playlistUrl });
-                      window.open(playlistUrl, "_blank");
-                    }}
-                    className="bg-[#1DB954] hover:bg-[#1ed760] text-white font-bold px-8 py-6 rounded-full text-lg flex items-center gap-2 transition-transform hover:scale-105"
-                  >
-                    <ExternalLink size={20} />
-                    {t("result.listenOnSpotify")}
-                  </Button>
-                  
+                <PlaylistEmbed playlistId={playlistId} playlistUrl={playlistUrl} />
+                
+                <div className="flex flex-wrap gap-4 justify-center mt-6">
                   <Button 
                     variant="outline"
                     onClick={handleStartOver} 
