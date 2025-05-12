@@ -1,5 +1,5 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -14,46 +14,59 @@ const Index = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { login, isLoading, checkSession, isAuthenticated, loginError } = useAuth();
+  // Track redirect status to prevent double processing
+  const [processingRedirect, setProcessingRedirect] = useState(false);
 
+  // Handle URL callback parameters
   useEffect(() => {
     // Check if the URL contains a user_id parameter (from callback)
     const params = new URLSearchParams(window.location.search);
     const userId = params.get("user_id");
 
-    if (userId) {
-      console.log("Found user_id in URL");
-      toast.info("Verificando autenticação...");
+    if (userId && !processingRedirect) {
+      setProcessingRedirect(true);
+      console.log("🔵 Found user_id in URL, starting authentication");
+      toast.info(t("auth.verifying"));
+      
       checkSession(userId)
         .then(success => {
-          console.log("Session check result:", success);
+          console.log("🔵 Session check result", success);
           if (success) {
-            toast.success("Autenticação bem-sucedida!");
+            toast.success(t("auth.success"));
+            // Clean URL without page refresh
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
             navigate("/chat", { replace: true });
           } else {
-            toast.error("Falha na autenticação. Por favor, tente novamente.");
+            toast.error(t("auth.failure"));
           }
         })
         .catch(err => {
-          console.error("Session check error:", err);
-          toast.error("Erro ao verificar sessão: " + (err.message || "Erro desconhecido"));
+          console.error("🔴 Session check error", err);
+          toast.error(`${t("error.sessionCheck")}: ${err.message || t("error.unknown")}`);
+        })
+        .finally(() => {
+          setProcessingRedirect(false);
         });
     }
-  }, [checkSession, navigate]);
+  }, [checkSession, navigate, processingRedirect, t]);
 
+  // Redirect already authenticated users
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/chat");
+      navigate("/chat", { replace: true });
     }
     
     // Check if we were in the middle of authentication (for mobile flow)
     const authInProgress = sessionStorage.getItem('authInProgress');
     if (authInProgress) {
-      toast.info("Verificando status da autenticação...");
+      toast.info(t("auth.checkingStatus"));
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, t]);
 
+  // Optimized login handler
   const handleLogin = () => {
-    console.log("Login button clicked");
+    console.log("🔵 Login button clicked");
     login();
   };
 
@@ -120,7 +133,7 @@ const Index = () => {
           {isLoading ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              Conectando...
+              {t("auth.connecting")}
             </>
           ) : (
             <>

@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -15,36 +14,46 @@ import MoodTunesAvatar from "../components/MoodTunesAvatar";
 const Chat = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { userId, logout } = useAuth(); // Removida a referência a checkSession
+  const { userId, logout } = useAuth();
   const { messages, sendMessage, isLoading, isFinished } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Removemos a verificação periódica da sessão
   
+  // Redirect to result when finished
   useEffect(() => {
     if (isFinished) {
-      navigate("/result");
+      console.log("🔵 Chat finished, navigating to result");
+      navigate("/result", { replace: true });
     }
   }, [isFinished, navigate]);
 
+  // Auto-scroll to latest messages and focus input
   useEffect(() => {
-    // Scroll to bottom when new messages appear
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    // Manter o foco no input
-    setTimeout(() => {
+    
+    // Keep focus on input but with a small delay to ensure UI has updated
+    const focusTimer = setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
+    
+    return () => clearTimeout(focusTimer);
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Optimized submit handler
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
+      console.log("🔵 Sending message");
       sendMessage(input);
       setInput("");
     }
-  };
+  }, [input, isLoading, sendMessage]);
+
+  // Optimize input handler
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
@@ -59,7 +68,8 @@ const Chat = () => {
             variant="ghost" 
             size="icon" 
             onClick={logout}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-white transition-colors"
+            aria-label="Logout"
           >
             <LogOut size={20} />
           </Button>
@@ -69,7 +79,7 @@ const Chat = () => {
       <div className="flex-1 p-4 overflow-y-auto flex flex-col max-w-3xl mx-auto w-full">
         <div className="flex-1 space-y-4 mb-4">
           {messages.length === 0 ? (
-            <div className="text-center py-10">
+            <div className="text-center py-10 animate-fade-in">
               <div className="flex justify-center mb-6">
                 <MoodTunesAvatar size="lg" />
               </div>
@@ -79,14 +89,14 @@ const Chat = () => {
           ) : (
             messages.map((msg, index) => (
               <MessageBubble 
-                key={index} 
+                key={`msg-${index}`}
                 message={msg.content} 
                 isUser={msg.role === "user"}
               />
             ))
           )}
           {isLoading && (
-            <div className="flex items-center gap-2 text-gray-400">
+            <div className="flex items-center gap-2 text-gray-400 animate-fade-in">
               <Loader size={16} className="animate-spin" />
               <span>{t("chat.thinking")}</span>
             </div>
@@ -98,15 +108,16 @@ const Chat = () => {
           <Input
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             placeholder={t("chat.inputPlaceholder")}
             disabled={isLoading}
-            className="bg-[#2D2254] border-[#1DB954]/30 focus:border-[#1DB954] text-white"
+            className="bg-[#2D2254] border-[#1DB954]/30 focus:border-[#1DB954] text-white transition-all"
           />
           <Button 
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="bg-[#1DB954] hover:bg-[#1ed760]"
+            className="bg-[#1DB954] hover:bg-[#1ed760] transition-colors"
+            aria-label="Send message"
           >
             <Send size={18} />
           </Button>
