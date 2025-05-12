@@ -23,6 +23,7 @@ interface ChatContextType {
   isFinished: boolean;
   mood: string | null;
   playlistUrl: string | null;
+  interactionCount: number;
   sendMessage: (content: string) => Promise<void>;
   loadMoodResult: (userId: string) => Promise<void>;
   resetChat: () => void;
@@ -39,6 +40,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [mood, setMood] = useState<string | null>(null);
   const [playlistUrl, setPlaylistUrl] = useState<string | null>(null);
+  const [interactionCount, setInteractionCount] = useState<number>(0);
 
   // Send a message to the backend
   const sendMessage = useCallback(async (content: string): Promise<void> => {
@@ -89,12 +91,21 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Add AI response to messages
       const aiMessage: Message = { role: 'assistant', content: data.response };
       setMessages(prev => [...prev, aiMessage]);
-
-      // Check if we've reached 5 messages (the new requirement)
-      const newMessageCount = messages.length + 2; // +2 for the new user and AI messages
       
-      if (newMessageCount >= 10) { // 5 user messages + 5 AI responses
-        logInfo("Reached 5 interactions, creating playlist");
+      // Update interaction count from the API response
+      if (data.interaction_count !== undefined) {
+        setInteractionCount(data.interaction_count);
+        logInfo("Updated interaction count", data.interaction_count);
+        
+        // Check if we've reached 3 or more interactions
+        if (data.interaction_count >= 3) {
+          logInfo("Reached 3+ interactions, showing playlist creation option");
+        }
+      }
+
+      // Check if we've reached exactly 5 interactions (the new requirement)
+      if (data.interaction_count === 5) {
+        logInfo("Reached exactly 5 interactions, automatically creating playlist");
         await createPlaylist();
       }
 
@@ -105,7 +116,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     }
 
-  }, [userId, messages.length, t, logout]);
+  }, [userId, logout, t]);
 
   // Create a playlist after 5 interactions
   const createPlaylist = useCallback(async (): Promise<void> => {
@@ -199,6 +210,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsFinished(false);
     setMood(null);
     setPlaylistUrl(null);
+    setInteractionCount(0);
     
     // Clear local storage mood data
     if (userId) {
@@ -216,12 +228,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [userId, mood, playlistUrl]);
 
-  const contextValue: ChatContextType = {
+  const contextValue = {
     messages,
     isLoading,
     isFinished,
     mood,
     playlistUrl,
+    interactionCount,
     sendMessage,
     loadMoodResult,
     resetChat

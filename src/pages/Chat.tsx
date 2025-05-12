@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -16,15 +16,20 @@ import ChatProgressIndicator from "../components/ChatProgressIndicator";
 const Chat = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { messages, sendMessage, isLoading, isFinished } = useChat();
+  const { messages, sendMessage, isLoading, isFinished, interactionCount } = useChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
-  // Calculate message count for progress indicator
+  // Calculate message count for progress indicator based on interaction count from API
   const userMessageCount = useMemo(() => {
+    // If we have the server's interaction count, use that
+    if (interactionCount > 0) {
+      return interactionCount;
+    }
+    // Otherwise fall back to counting user messages
     return messages.filter(msg => msg.role === 'user').length;
-  }, [messages]);
+  }, [messages, interactionCount]);
   
   // Redirect to result when finished
   useEffect(() => {

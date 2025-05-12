@@ -1,5 +1,5 @@
 
-import { useCallback } from "react";
+import React from 'react';
 import { useTranslation } from "../contexts/LanguageContext";
 
 interface ChatProgressIndicatorProps {
@@ -10,7 +10,7 @@ const ChatProgressIndicator = ({ userMessageCount }: ChatProgressIndicatorProps)
   const { t } = useTranslation();
   
   // Progress text based on number of messages
-  const getProgressText = useCallback(() => {
+  const getProgressText = () => {
     const remaining = 5 - userMessageCount;
     
     if (remaining <= 0) {
@@ -20,7 +20,7 @@ const ChatProgressIndicator = ({ userMessageCount }: ChatProgressIndicatorProps)
     } else {
       return t("chat.messagesRemaining", { count: remaining });
     }
-  }, [userMessageCount, t]);
+  };
 
   return (
     <div className="bg-[#2D2254] px-4 py-2 text-center">

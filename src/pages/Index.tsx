@@ -1,10 +1,10 @@
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../components/ui/button";
-import { Music, Sparkles, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import MoodTunesAvatar from "../components/MoodTunesAvatar";
@@ -110,7 +110,9 @@ const Index = () => {
             MoodTunes
           </h1>
           <div className="absolute -top-10 -right-10 animate-spin-slow opacity-70">
-            <Sparkles className="text-[#1DB954]" size={24} />
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#1DB954]">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
           </div>
         </div>
 

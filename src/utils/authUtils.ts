@@ -21,6 +21,28 @@ export const isSessionValid = (timestamp: string | null): boolean => {
   }
 };
 
+// Verify session with the API
+export const verifySession = async (): Promise<{authenticated: boolean; userId: string | null}> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/session-info`, {
+      credentials: 'include' // Important for cookies
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        authenticated: data.authenticated,
+        userId: data.authenticated ? data.user_id : null
+      };
+    }
+    
+    return { authenticated: false, userId: null };
+  } catch (error) {
+    logError('Error verifying session', error);
+    return { authenticated: false, userId: null };
+  }
+};
+
 // Handle authentication popups for desktop browsers
 export const openAuthPopup = (authUrl: string): Window | null => {
   try {

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
 import { logInfo, logError, logWarning } from '../utils/logUtils';
-import { API_BASE_URL, isSessionValid, clearAuthData } from '../utils/authUtils';
+import { API_BASE_URL, isSessionValid, clearAuthData, verifySession } from '../utils/authUtils';
 import { useAuthPopup } from '../hooks/useAuthPopup';
 
 type AuthContextType = {
@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Check session validity
+  // Check session validity with the API
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
     logInfo("Checking session for ID", id);
 
@@ -60,21 +60,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true);
-      // Send a request to the root endpoint to check session
-      const response = await fetch(`${API_BASE_URL}/`, {
-        credentials: 'include' // Important for sending cookies
-      });
+      // Use the new session-info endpoint to verify the session
+      const sessionInfo = await verifySession();
       
-      logInfo("Session check response status", response.status);
+      logInfo("Session check response", sessionInfo);
 
-      if (response.ok) {
+      if (sessionInfo.authenticated && sessionInfo.userId) {
         logInfo("Session is valid");
         // Store the session with a timestamp
-        localStorage.setItem('userId', id);
+        localStorage.setItem('userId', sessionInfo.userId);
         localStorage.setItem('sessionTimestamp', String(new Date().getTime()));
         sessionStorage.removeItem('authInProgress');
         
-        setUserId(id);
+        setUserId(sessionInfo.userId);
         setIsAuthenticated(true);
         setLoginError(null);
         
@@ -84,8 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         navigate('/chat', { replace: true });
         return true;
       } else {
-        logWarning(`Session invalid (${response.status})`);
-        setLoginError(`${t("error.invalidSession")} (${response.status})`);
+        logWarning(`Session invalid`);
+        setLoginError(t("error.invalidSession"));
         toast.error(t("error.sessionExpired"));
         
         // Clean up any local session data
@@ -127,28 +125,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [checkSession, navigate]);
 
-  // Login function - uses the new API endpoint
-  const login = useCallback(() => {
+  // Login function - getting auth_url from the API
+  const login = useCallback(async () => {
     logInfo("Starting login process");
     // Reset any previous errors
     setLoginError(null);
+    setIsLoading(true);
 
-    // Check if we're on mobile
-    const isMobile = window.innerWidth <= 768;
-    const authUrl = `${API_BASE_URL}/login`;
-    logInfo("Auth URL", authUrl);
+    try {
+      // Get the auth URL from the API
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Login request failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const authUrl = data.auth_url;
+      
+      if (!authUrl) {
+        throw new Error('Auth URL not provided by server');
+      }
+      
+      logInfo("Auth URL received", authUrl);
 
-    if (isMobile) {
-      redirectToAuth(authUrl);
-      return;
+      // Check if we're on mobile
+      const isMobile = window.innerWidth <= 768;
+
+      if (isMobile) {
+        redirectToAuth(authUrl);
+        return;
+      }
+
+      // For desktop browsers, use popup
+      launchAuthPopup(authUrl);
+    } catch (error) {
+      logError("Login error", error);
+      setLoginError(`${t("error.login")}: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error(t("error.loginFailed"));
+      setIsLoading(false);
     }
+  }, [launchAuthPopup, redirectToAuth, t]);
 
-    // For desktop browsers, use popup
-    launchAuthPopup(authUrl);
-
-  }, [launchAuthPopup, redirectToAuth]);
-
-  // Logout function - uses the new API endpoint
+  // Logout function
   const logout = useCallback(() => {
     logInfo("Logging out user", { userId });
     
