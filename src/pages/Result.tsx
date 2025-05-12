@@ -1,15 +1,15 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useChat } from "../contexts/ChatContext";
 import { Button } from "../components/ui/button";
-import { Music, Loader, RefreshCw, ExternalLink } from "lucide-react";
+import { Music, Loader, RefreshCw, ExternalLink, LogOut } from "lucide-react";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { getMoodEmoji } from "../utils/moodHelper";
+import MoodTunesAvatar from "../components/MoodTunesAvatar";
 
 // Regular expressions for extracting Spotify playlist ID
 const SPOTIFY_PLAYLIST_REGEX = [
