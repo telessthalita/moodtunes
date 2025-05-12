@@ -3,9 +3,10 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
 import { useTranslation } from './LanguageContext';
+import { logInfo, logError, logWarning } from '../utils/logUtils';
 
 // Updated API base URL
-const API_BASE_URL = 'https://moodtunes-htki.onrender.com';
+const API_BASE_URL = 'https://moodtunes-end.onrender.com';
 
 // Types for messages
 type MessageRole = 'user' | 'assistant';
@@ -31,7 +32,7 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userId } = useAuth();
+  const { userId, logout } = useAuth();
   const { t, language } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -43,6 +44,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sendMessage = useCallback(async (content: string): Promise<void> => {
     if (!userId) {
       toast.error(t("error.sessionExpired"));
+      logout();
+      return;
+    }
+
+    if (!content.trim()) {
+      toast.error(t("error.emptyMessage"));
       return;
     }
 
@@ -52,56 +59,133 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/moodtalk`, {
+      logInfo("Sending message to chat API", { userId, content });
+      
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: userId,
-          message: content,
-          lang: language
+          message: content
         }),
+        credentials: 'include' // Important for cookies/session
       });
+
+      if (response.status === 401) {
+        logWarning("Authentication required - Session expired");
+        toast.error(t("error.sessionExpired"));
+        logout();
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
+      logInfo("Received chat response", data);
 
-      const aiMessage: Message = { role: 'assistant', content: data.resposta };
+      // Add AI response to messages
+      const aiMessage: Message = { role: 'assistant', content: data.response };
       setMessages(prev => [...prev, aiMessage]);
 
-      if (data.playlist_url) {
-        setIsFinished(true);
-        setMood(data.mood || null);
-        setPlaylistUrl(data.playlist_url || null);
+      // Check if we've reached 5 messages (the new requirement)
+      const newMessageCount = messages.length + 2; // +2 for the new user and AI messages
+      
+      if (newMessageCount >= 10) { // 5 user messages + 5 AI responses
+        logInfo("Reached 5 interactions, creating playlist");
+        await createPlaylist();
       }
+
     } catch (error) {
-      console.error('Error sending message:', error);
+      logError('Error sending message:', error);
       toast.error(t("error.connectionFailed"));
     } finally {
       setIsLoading(false);
     }
 
-  }, [userId, language, t]);
+  }, [userId, messages.length, t, logout]);
 
-  // Load mood result from the backend
-  const loadMoodResult = useCallback(async (userId: string): Promise<void> => {
+  // Create a playlist after 5 interactions
+  const createPlaylist = useCallback(async (): Promise<void> => {
+    if (!userId) {
+      toast.error(t("error.sessionExpired"));
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/moodresult?user_id=${userId}`);
+      logInfo("Creating playlist", { userId });
+      
+      const response = await fetch(`${API_BASE_URL}/create-playlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include' // Important for cookies/session
+      });
+
+      if (response.status === 401) {
+        logWarning("Authentication required for playlist creation");
+        toast.error(t("error.sessionExpired"));
+        logout();
+        return;
+      }
+
+      if (response.status === 400) {
+        const errorData = await response.json();
+        logWarning("Cannot create playlist", errorData);
+        toast.error(t("error.insufficientInteractions"));
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      setMood(data.mood);
-      setPlaylistUrl(data.playlist_url);
+      logInfo("Playlist created successfully", data);
+
+      if (data.success && data.playlist_url) {
+        setIsFinished(true);
+        setMood(data.mood || null);
+        setPlaylistUrl(data.playlist_url || null);
+        toast.success(t("success.playlistCreated"));
+      } else {
+        logWarning("Playlist creation response missing data", data);
+        toast.error(t("error.playlistCreationFailed"));
+      }
     } catch (error) {
-      console.error('Error loading result:', error);
+      logError('Error creating playlist:', error);
+      toast.error(t("error.connectionFailed"));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, t, logout]);
+
+  // Load mood result from the backend
+  const loadMoodResult = useCallback(async (userId: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      logInfo("Loading mood result", { userId });
+      
+      // This endpoint doesn't exist in the new API, so we're adapting
+      // In a real situation, we'd implement proper session restoration or storage
+      const moodData = localStorage.getItem(`mood_${userId}`);
+      const playlistData = localStorage.getItem(`playlist_${userId}`);
+      
+      if (moodData && playlistData) {
+        setMood(moodData);
+        setPlaylistUrl(playlistData);
+        logInfo("Loaded mood data from local storage", { mood: moodData, playlist: playlistData });
+      } else {
+        logWarning("No mood data found for user", { userId });
+        setMood(null);
+        setPlaylistUrl(null);
+      }
+    } catch (error) {
+      logError('Error loading result:', error);
       toast.error(t("error.connectionFailed"));
     } finally {
       setIsLoading(false);
@@ -110,11 +194,27 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Reset chat state
   const resetChat = useCallback(() => {
+    logInfo("Resetting chat state");
     setMessages([]);
     setIsFinished(false);
     setMood(null);
     setPlaylistUrl(null);
-  }, []);
+    
+    // Clear local storage mood data
+    if (userId) {
+      localStorage.removeItem(`mood_${userId}`);
+      localStorage.removeItem(`playlist_${userId}`);
+    }
+  }, [userId]);
+
+  // Store mood and playlist data when they change
+  useEffect(() => {
+    if (userId && mood && playlistUrl) {
+      localStorage.setItem(`mood_${userId}`, mood);
+      localStorage.setItem(`playlist_${userId}`, playlistUrl);
+      logInfo("Saved mood data to local storage", { userId, mood });
+    }
+  }, [userId, mood, playlistUrl]);
 
   const contextValue: ChatContextType = {
     messages,

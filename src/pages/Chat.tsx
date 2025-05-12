@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,6 +11,7 @@ import MessageBubble from "../components/MessageBubble";
 import Footer from "../components/Footer";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import MoodTunesAvatar from "../components/MoodTunesAvatar";
+import { logInfo } from "../utils/logUtils";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -20,10 +22,15 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
+  // Calculate message count for progress indicator
+  const userMessageCount = useMemo(() => {
+    return messages.filter(msg => msg.role === 'user').length;
+  }, [messages]);
+  
   // Redirect to result when finished
   useEffect(() => {
     if (isFinished) {
-      console.log("🔵 Chat finished, navigating to result");
+      logInfo("Chat finished, navigating to result");
       navigate("/result", { replace: true });
     }
   }, [isFinished, navigate]);
@@ -44,7 +51,7 @@ const Chat = () => {
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
-      console.log("🔵 Sending message");
+      logInfo("Sending message");
       sendMessage(input);
       setInput("");
     }
@@ -54,6 +61,19 @@ const Chat = () => {
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
   }, []);
+
+  // Progress text based on number of messages
+  const getProgressText = useCallback(() => {
+    const remaining = 5 - userMessageCount;
+    
+    if (remaining <= 0) {
+      return t("chat.creatingPlaylist");
+    } else if (remaining === 1) {
+      return t("chat.oneMoreMessage");
+    } else {
+      return t("chat.messagesRemaining", { count: remaining });
+    }
+  }, [userMessageCount, t]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
@@ -73,6 +93,21 @@ const Chat = () => {
           >
             <LogOut size={20} />
           </Button>
+        </div>
+      </div>
+
+      {/* Progress indicator */}
+      <div className="bg-[#2D2254] px-4 py-2 text-center">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="text-sm text-gray-300">{getProgressText()}</div>
+          <div className="flex gap-1">
+            {[...Array(5)].map((_, index) => (
+              <div 
+                key={index} 
+                className={`w-4 h-1 rounded-full ${index < userMessageCount ? 'bg-[#1DB954]' : 'bg-gray-600'}`}
+              ></div>
+            ))}
+          </div>
         </div>
       </div>
 

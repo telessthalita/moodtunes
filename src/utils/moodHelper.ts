@@ -12,11 +12,11 @@ export const getMoodEmoji = (mood: string): string => {
     return '⚡';
   } else if (lowerCaseMood.includes('relax') || lowerCaseMood.includes('relaxado')) {
     return '💆';
-  } else if (lowerCaseMood.includes('angry') || lowerCaseMood.includes('irritado') || lowerCaseMood.includes('enojado')) {
+  } else if (lowerCaseMood.includes('angry') || lowerCaseMood.includes('irritado') || lowerCaseMood.includes('enojado') || lowerCaseMood.includes('raivoso')) {
     return '😠';
   } else if (lowerCaseMood.includes('anxious') || lowerCaseMood.includes('ansioso')) {
     return '😰';
-  } else if (lowerCaseMood.includes('excited') || lowerCaseMood.includes('empolgado') || lowerCaseMood.includes('emocionado')) {
+  } else if (lowerCaseMood.includes('excited') || lowerCaseMood.includes('empolgado') || lowerCaseMood.includes('emocionado') || lowerCaseMood.includes('animado')) {
     return '🤩';
   } else if (lowerCaseMood.includes('nostalgic') || lowerCaseMood.includes('nostálgico')) {
     return '🥹';
@@ -26,6 +26,10 @@ export const getMoodEmoji = (mood: string): string => {
     return '🧠';
   } else if (lowerCaseMood.includes('party') || lowerCaseMood.includes('festa') || lowerCaseMood.includes('fiesta')) {
     return '🎉';
+  } else if (lowerCaseMood.includes('tired') || lowerCaseMood.includes('cansado')) {
+    return '😴';
+  } else if (lowerCaseMood.includes('motivado') || lowerCaseMood.includes('motivated')) {
+    return '💪';
   }
   
   // Default emoji if no match

@@ -3,29 +3,13 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from './LanguageContext';
+import { logInfo, logError, logWarning } from '../utils/logUtils';
 
 // Updated API base URL
-const API_BASE_URL = 'https://moodtunes-htki.onrender.com';
+const API_BASE_URL = 'https://moodtunes-end.onrender.com';
 
 // Session timeout in milliseconds (24 hours)
 const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
-
-// Improved log format for consistency
-const logInfo = (message: string, data?: any) => {
-  if (data) {
-    console.log(`🔵 ${message}`, data);
-  } else {
-    console.log(`🔵 ${message}`);
-  }
-};
-
-const logError = (message: string, error?: any) => {
-  if (error) {
-    console.error(`🔴 ${message}`, error);
-  } else {
-    console.error(`🔴 ${message}`);
-  }
-};
 
 type AuthContextType = {
   userId: string | null;
@@ -42,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  
   // Initialize state from localStorage with proper session validation
   const [userId, setUserId] = useState<string | null>(() => {
     try {
@@ -183,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [authPopup, isAuthenticated, t]);
 
-  // Memoized login function to prevent unnecessary re-renders
+  // Login function - uses the new API endpoint
   const login = useCallback(() => {
     logInfo("Starting login process");
     // Reset any previous errors
@@ -191,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check if we're on mobile
     const isMobile = window.innerWidth <= 768;
-    const authUrl = `${API_BASE_URL}/spotify/login`;
+    const authUrl = `${API_BASE_URL}/login`;
     logInfo("Auth URL", authUrl);
 
     try {
@@ -267,17 +252,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [authPopup, t]);
 
+  // Logout function - uses the new API endpoint
   const logout = useCallback(() => {
+    logInfo("Logging out user", { userId });
+    
+    // Clear local storage
     localStorage.removeItem('userId');
     localStorage.removeItem('sessionTimestamp');
     sessionStorage.removeItem('authInProgress');
+    
+    // Reset state
     setUserId(null);
     setIsAuthenticated(false);
     setLoginError(null);
-    logInfo("User logged out");
-    navigate('/', { replace: true });
-  }, [navigate]);
+    
+    // Redirect to logout endpoint to clear server-side session
+    window.location.href = `${API_BASE_URL}/logout`;
+  }, [userId]);
 
+  // Check session validity
   const checkSession = useCallback(async (id: string): Promise<boolean> => {
     logInfo("Checking session for ID", id);
 
@@ -290,10 +283,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true);
-      const sessionUrl = `${API_BASE_URL}/session_user?user_id=${id}`;
-      logInfo("Session check URL", sessionUrl);
-
-      const response = await fetch(sessionUrl);
+      // Send a request to the root endpoint to check session
+      const response = await fetch(`${API_BASE_URL}/`, {
+        credentials: 'include' // Important for sending cookies
+      });
+      
       logInfo("Session check response status", response.status);
 
       if (response.ok) {
@@ -318,11 +312,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         navigate('/chat', { replace: true });
         return true;
       } else {
-        const errorText = await response.text();
-        logError(`Session invalid (${response.status})`, errorText);
-        setLoginError(`${t("error.invalidSession")} (${response.status}): ${errorText || t("error.unknown")}`);
+        logWarning(`Session invalid (${response.status})`);
+        setLoginError(`${t("error.invalidSession")} (${response.status})`);
         toast.error(t("error.sessionExpired"));
-        logout();
+        
+        // Clean up any local session data
+        localStorage.removeItem('userId');
+        localStorage.removeItem('sessionTimestamp');
+        sessionStorage.removeItem('authInProgress');
+        
+        setUserId(null);
+        setIsAuthenticated(false);
+        setIsLoading(false);
         return false;
       }
     } catch (error) {
@@ -332,7 +333,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return false;
     }
-  }, [userId, isAuthenticated, navigate, logout, t, authPopup]);
+  }, [userId, isAuthenticated, navigate, t, authPopup]);
   
   // Use memo to prevent unnecessary re-renders of context consumers
   const contextValue = useMemo(() => ({

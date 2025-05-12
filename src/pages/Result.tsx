@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "../contexts/LanguageContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -10,6 +11,7 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { getMoodEmoji } from "../utils/moodHelper";
 import MoodTunesAvatar from "../components/MoodTunesAvatar";
+import { logInfo, logWarning, logError } from "../utils/logUtils";
 
 // Regular expressions for extracting Spotify playlist ID
 const SPOTIFY_PLAYLIST_REGEX = [
@@ -28,9 +30,9 @@ const Result = () => {
   // Load result on mount if not already loaded
   useEffect(() => {
     if (userId && !mood && !isLoading) {
-      console.log("🔵 Loading mood result for user:", userId);
+      logInfo("Loading mood result for user:", userId);
       loadMoodResult(userId).catch(err => {
-        console.error("🔴 Error loading mood result:", err);
+        logError("Error loading mood result:", err);
       });
     }
   }, [userId, mood, isLoading, loadMoodResult]);
@@ -39,21 +41,21 @@ const Result = () => {
   useEffect(() => {
     if (playlistUrl) {
       const extractedId = getPlaylistId(playlistUrl);
-      console.log("🔵 Extracted playlist ID:", extractedId);
+      logInfo("Extracted playlist ID:", extractedId);
       setPlaylistId(extractedId);
     }
   }, [playlistUrl]);
 
   // Improved function for extracting Spotify playlist ID 
   const getPlaylistId = useCallback((url: string): string | null => {
-    console.log("🔵 Attempting to parse playlist URL:", url);
+    logInfo("Attempting to parse playlist URL:", url);
     
     try {
       // Try each regex pattern
       for (const regex of SPOTIFY_PLAYLIST_REGEX) {
         const match = url.match(regex);
         if (match && match[1]) {
-          console.log("🔵 Matched playlist ID with pattern:", regex);
+          logInfo("Matched playlist ID with pattern:", regex);
           return match[1];
         }
       }
@@ -67,27 +69,33 @@ const Result = () => {
         if (playlistIndex !== -1 && playlistIndex + 1 < pathSegments.length) {
           const id = pathSegments[playlistIndex + 1];
           if (id && id.length === 22) {
-            console.log("🔵 Extracted ID from URL path segments:", id);
+            logInfo("Extracted ID from URL path segments:", id);
             return id;
           }
         }
       } catch (e) {
-        console.warn("🟡 URL parsing failed:", e);
+        logWarning("URL parsing failed:", e);
       }
       
-      console.warn("🟡 Could not extract playlist ID from:", url);
+      logWarning("Could not extract playlist ID from:", url);
       return null;
     } catch (e) {
-      console.error("🔴 Error extracting playlist ID:", e);
+      logError("Error extracting playlist ID:", e);
       return null;
     }
   }, []);
 
   const handleStartOver = useCallback(() => {
-    console.log("🔵 Starting over, resetting chat");
+    logInfo("Starting over, resetting chat");
     resetChat();
     navigate("/chat", { replace: true });
   }, [resetChat, navigate]);
+
+  // Memoized playlist embed URL for better performance
+  const playlistEmbedUrl = useMemo(() => {
+    if (!playlistId) return null;
+    return `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`;
+  }, [playlistId]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
@@ -143,11 +151,11 @@ const Result = () => {
                 <CardDescription>{t("result.enjoyMusic")}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col items-center">
-                {playlistId ? (
+                {playlistEmbedUrl ? (
                   <div className="w-full max-w-2xl aspect-video mb-6">
                     <iframe
                       title="Spotify Playlist"
-                      src={`https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator&theme=0`}
+                      src={playlistEmbedUrl}
                       width="100%"
                       height="100%"
                       frameBorder="0"
@@ -170,7 +178,7 @@ const Result = () => {
                 <div className="flex flex-wrap gap-4 justify-center mt-2">
                   <Button 
                     onClick={() => {
-                      console.log("🔵 Opening Spotify playlist in new tab");
+                      logInfo("Opening Spotify playlist in new tab", { playlistUrl });
                       window.open(playlistUrl, "_blank");
                     }}
                     className="bg-[#1DB954] hover:bg-[#1ed760] text-white font-bold px-8 py-6 rounded-full text-lg flex items-center gap-2 transition-transform hover:scale-105"
