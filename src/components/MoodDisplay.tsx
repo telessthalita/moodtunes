@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { useTranslation } from "../contexts/LanguageContext";
 import { getMoodEmoji } from "../utils/moodHelper";
 
