@@ -70,6 +70,28 @@ export const openAuthPopup = (authUrl: string): Window | null => {
   }
 };
 
+// Setup message listener for auth flow
+export const setupAuthMessageListener = (callback: (userId: string) => void): () => void => {
+  const handleAuthMessage = (event: MessageEvent) => {
+    logInfo("Received message event", event.data);
+
+    if (event.data && event.data.user_id) {
+      const userId = event.data.user_id;
+      logInfo("Received user_id from message", userId);
+      callback(userId);
+    }
+  };
+
+  window.addEventListener('message', handleAuthMessage);
+  logInfo("Auth message listener setup completed");
+
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('message', handleAuthMessage);
+    logInfo("Auth message listener removed");
+  };
+};
+
 // Clear authentication data from storage
 export const clearAuthData = () => {
   localStorage.removeItem('userId');

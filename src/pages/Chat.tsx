@@ -11,7 +11,6 @@ import Footer from "../components/Footer";
 import MoodTunesAvatar from "../components/MoodTunesAvatar";
 import { logInfo } from "../utils/logUtils";
 import ApplicationHeader from "../components/ApplicationHeader";
-import ChatProgressIndicator from "../components/ChatProgressIndicator";
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -20,16 +19,6 @@ const Chat = () => {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  
-  // Calculate message count for progress indicator based on interaction count from API
-  const userMessageCount = useMemo(() => {
-    // If we have the server's interaction count, use that
-    if (interactionCount > 0) {
-      return interactionCount;
-    }
-    // Otherwise fall back to counting user messages
-    return messages.filter(msg => msg.role === 'user').length;
-  }, [messages, interactionCount]);
   
   // Redirect to result when finished
   useEffect(() => {
@@ -69,8 +58,7 @@ const Chat = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#1E1B2E] text-white">
       <ApplicationHeader />
-      <ChatProgressIndicator userMessageCount={userMessageCount} />
-
+      
       <div className="flex-1 p-4 overflow-y-auto flex flex-col max-w-3xl mx-auto w-full">
         <div className="flex-1 space-y-4 mb-4">
           {messages.length === 0 ? (
