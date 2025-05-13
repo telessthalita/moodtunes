@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
 
 // Define available languages
@@ -33,6 +32,10 @@ const translations: Translations = {
     "result.listenOnSpotify": "Ouvir no Spotify",
     "result.startOver": "Começar nova conversa",
 
+    "chat.creatingPlaylist": "Criando sua playlist personalizada...",
+    "chat.oneMoreMessage": "Mais uma mensagem para criar sua playlist!",
+    "chat.messagesRemaining": "Faltam {count} mensagens para criar sua playlist",
+    
     "footer.text": "Produzido por Thalita Teles utilizando tecnologias da Gemini AI e Spotify.",
 
     "error.sessionExpired": "Sua sessão expirou. Por favor, faça login novamente.",
@@ -62,6 +65,10 @@ const translations: Translations = {
     "result.listenOnSpotify": "Listen on Spotify",
     "result.startOver": "Start new conversation",
 
+    "chat.creatingPlaylist": "Creating your personalized playlist...",
+    "chat.oneMoreMessage": "One more message to create your playlist!",
+    "chat.messagesRemaining": "{count} more messages to create your playlist",
+    
     "footer.text": "Produced by Thalita Teles using Gemini AI and Spotify technologies.",
 
     "error.sessionExpired": "Your session has expired. Please log in again.",
@@ -91,6 +98,10 @@ const translations: Translations = {
     "result.listenOnSpotify": "Escuchar en Spotify",
     "result.startOver": "Iniciar nueva conversación",
 
+    "chat.creatingPlaylist": "Creando tu lista de reproducción personalizada...",
+    "chat.oneMoreMessage": "¡Un mensaje más para crear tu lista de reproducción!",
+    "chat.messagesRemaining": "Faltan {count} mensajes para crear tu lista de reproducción",
+    
     "footer.text": "Producido por Thalita Teles utilizando tecnologías de Gemini AI y Spotify.",
 
     "error.sessionExpired": "Tu sesión ha caducado. Por favor, inicia sesión de nuevo.",
@@ -106,7 +117,7 @@ const translations: Translations = {
 type LanguageContextType = {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string) => string;
+  t: (key: string, options?: Record<string, any>) => string;
 };
 
 // Create context
@@ -125,9 +136,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('language', lang);
   }, []);
 
-  // Translation function
-  const t = useCallback((key: string): string => {
-    return translations[language][key] || key;
+  // Translation function with parameter support
+  const t = useCallback((key: string, options?: Record<string, any>): string => {
+    let text = translations[language][key] || key;
+    
+    // Replace placeholders if options are provided
+    if (options) {
+      Object.keys(options).forEach(optionKey => {
+        const placeholder = `{${optionKey}}`;
+        text = text.replace(placeholder, options[optionKey].toString());
+      });
+    }
+    
+    return text;
   }, [language]);
 
   // Memoize context value
