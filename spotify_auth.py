@@ -17,8 +17,6 @@ def authenticate_spotify():
             scope="user-library-read playlist-modify-private"
         )
         auth_url = sp_oauth.get_authorize_url()
-        
-        # Abre popup e monitora retorno
         js = f"""
         <script>
             window.open('{auth_url}', 'SpotifyAuth', 'width=500,height=700');
@@ -26,7 +24,6 @@ def authenticate_spotify():
         """
         st.components.v1.html(js)
         
-        # Botão de verificação
         if st.button("Já autentiquei no popup"):
             st.session_state.sp = spotipy.Spotify(auth_manager=sp_oauth)
             st.session_state.user_info = st.session_state.sp.current_user()
