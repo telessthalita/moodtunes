@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
@@ -25,34 +25,22 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise RuntimeError("Defina GROQ_API_KEY no .env")
 
+FRONTEND_BASE_URL = "https://preview--moodtuness.lovable.app"
+
 client = Groq(api_key=GROQ_API_KEY)
 
 app = FastAPI(title="MoodTunes API", version="1.0.0")
 
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=[FRONTEND_BASE_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -------------------------
-# Memória em processo (dev)
-# -------------------------
 SESSIONS: Dict[str, Dict[str, Any]] = {}
-# session: {
-#   "messages": [{"role":"user"/"assistant","content":str}, ...],
-#   "token": {access_token, refresh_token, expires_at, ...} | None,
-#   "user": {id, display_name, ...} | None,
-#   "mood": str | None,
-#   "songs": [ "Artista - Título", ... ] | [],
-# }
 
-# -------------------------
-# Models
-# -------------------------
 class StartSessionResponse(BaseModel):
     session_id: str
 
@@ -67,15 +55,12 @@ class ChatSendRequest(BaseModel):
 class ChatSendResponse(BaseModel):
     messages: List[Dict[str, str]]
     pending: bool
-    suggestions: List[Dict[str, Any]]  
+    suggestions: List[Dict[str, Any]]
     finalized: bool
-    playlist: Optional[Dict[str, Any]] = None  
+    playlist: Optional[Dict[str, Any]] = None
 
-# -------------------------
-# Helpers
-# -------------------------
 SYSTEM_PROMPT = """\
-Você é oMoodTunes, concierge musical concisa, sagaz e empática.
+Você é o MoodTunes se apresente antes de iniciar a conversa, concierge musical concisa, sagaz e empática.
 Objetivo: entender o humor e o contexto da usuária em ATÉ 5 turnos e então responder com ATÉ 5 músicas específicas.
 Regras:
 - Responda SEMPRE em português do Brasil, chamando a usuária de "Senhorita TT".
@@ -121,10 +106,6 @@ def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
         pass
     return None
 
-# -------------------------
-# API
-# -------------------------
-
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
     sid = str(uuid.uuid4())
@@ -140,7 +121,6 @@ def session_status(session_id: str = Query(...)):
 
 @app.get("/auth/login")
 def auth_login(session_id: str = Query(...)):
-  
     url = build_auth_url(state=session_id)
     return {"auth_url": url}
 
@@ -154,23 +134,20 @@ def auth_callback(code: str = Query(None), state: str = Query(None)):
         s["token"] = token
         me = get_current_user(token["access_token"])
         s["user"] = {"id": me.get("id"), "display_name": me.get("display_name")}
-        return HTMLResponse("<h3>Spotify conectado. Você pode voltar ao app.</h3>")
+        target = f"{FRONTEND_BASE_URL}?session_id={state}&auth=ok"
+        return RedirectResponse(url=target, status_code=302)
     except Exception as e:
         return HTMLResponse(f"<h3>Falha ao autenticar: {e}</h3>", status_code=400)
 
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(req: ChatSendRequest):
     s = ensure_session(req.session_id)
-
     s["messages"].append({"role": "user", "content": req.message})
-
     user_turns = sum(1 for m in s["messages"] if m["role"] == "user")
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}] + s["messages"]
-
     force_json = user_turns >= 5 or any(kw in req.message.lower() for kw in FINALIZE_KEYWORDS)
     if force_json:
         msgs.append({"role": "system", "content": "You must now output ONLY the JSON with up to 5 songs."})
-
     try:
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
@@ -181,17 +158,14 @@ def chat_send(req: ChatSendRequest):
         reply = resp.choices[0].message.content.strip()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro Groq: {e}")
-
     parsed = parse_llm_songs(reply)
     suggestions: List[Dict[str, Any]] = []
     finalized = False
     playlist_info: Optional[Dict[str, Any]] = None
-
     if parsed:
         s["mood"] = parsed.get("mood")
         raw_songs = parsed.get("songs", [])[:5]
         s["songs"] = raw_songs
-
         if not s["token"]:
             suggestions = [{"query": q} for q in raw_songs]
             s["messages"].append({"role": "assistant", "content": "Tenho a shortlist. Conecte o Spotify para eu criar a playlist automaticamente."})
@@ -202,7 +176,6 @@ def chat_send(req: ChatSendRequest):
         access = s["token"]["access_token"]
         me = s.get("user") or get_current_user(access)
         user_id = me.get("id")
-
         track_objs = []
         uris = []
         for q in raw_songs:
@@ -210,9 +183,7 @@ def chat_send(req: ChatSendRequest):
             if t:
                 track_objs.append(t)
                 uris.append(t["uri"])
-
         suggestions = track_objs
-
         if uris:
             pl = create_playlist(
                 access, user_id,
@@ -227,10 +198,8 @@ def chat_send(req: ChatSendRequest):
             s["messages"].append({"role": "assistant", "content": f"Playlist criada automaticamente: {playlist_info['name']}"})
         else:
             s["messages"].append({"role": "assistant", "content": "Não consegui resolver as faixas. Pode ajustar os títulos?"})
-
     else:
         s["messages"].append({"role": "assistant", "content": reply})
-
     return ChatSendResponse(
         messages=s["messages"],
         pending=not bool(parsed),
