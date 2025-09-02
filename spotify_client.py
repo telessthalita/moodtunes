@@ -3,7 +3,6 @@ import time
 import base64
 import requests
 from urllib.parse import urlencode
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -50,7 +49,7 @@ def exchange_code_for_token(code: str) -> dict:
     return token
 
 def refresh_access_token(refresh_token: str) -> dict:
-    data = {"grant_type": "refresh_token","refresh_token": refresh_token}
+    data = {"grant_type": "refresh_token", "refresh_token": refresh_token}
     headers = {"Authorization": _basic_auth_header()}
     resp = requests.post(TOKEN_URL, data=data, headers=headers, timeout=30)
     resp.raise_for_status()
@@ -73,7 +72,7 @@ def api_get(access_token: str, path: str, params: dict | None = None) -> dict:
     return resp.json()
 
 def api_post(access_token: str, path: str, body: dict) -> dict:
-    headers = {"Authorization": f"Bearer {access_token}","Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     resp = requests.post(f"{API_BASE}{path}", headers=headers, json=body, timeout=30)
     resp.raise_for_status()
     return resp.json() if resp.text else {}
@@ -82,7 +81,6 @@ def get_current_user(access_token: str) -> dict:
     return api_get(access_token, "/me")
 
 def search_track_full(access_token: str, query: str) -> dict | None:
-    """Return best match with uri, name, artist, preview_url, external_url"""
     data = api_get(access_token, "/search", {"q": query, "type": "track", "limit": 1})
     items = data.get("tracks", {}).get("items", [])
     if not items:
@@ -93,7 +91,7 @@ def search_track_full(access_token: str, query: str) -> dict | None:
         "uri": t["uri"],
         "name": t["name"],
         "artist": artists,
-        "preview_url": t.get("preview_url"),  # pode ser None
+        "preview_url": t.get("preview_url"),
         "external_url": t.get("external_urls", {}).get("spotify"),
         "id": t.get("id"),
     }

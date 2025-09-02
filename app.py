@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
@@ -21,13 +21,13 @@ from spotify_client import (
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise RuntimeError("Defina GROQ_API_KEY no .env")
+def get_groq():
+    key = os.getenv("GROQ_API_KEY")
+    if not key:
+        raise RuntimeError("Defina GROQ_API_KEY no .env")
+    return Groq(api_key=key)
 
-FRONTEND_BASE_URL = "https://preview--moodtuness.lovable.app"
-
-client = Groq(api_key=GROQ_API_KEY)
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://preview--moodtuness.lovable.app").rstrip("/")
 
 app = FastAPI(title="MoodTunes API", version="1.0.0")
 
@@ -59,8 +59,7 @@ class ChatSendResponse(BaseModel):
     finalized: bool
     playlist: Optional[Dict[str, Any]] = None
 
-SYSTEM_PROMPT = """\
-Você é o MoodTunes se apresente antes de iniciar a conversa, concierge musical concisa, sagaz e empática.
+SYSTEM_PROMPT = """Você é a Friday (MoodTunes), concierge musical concisa, sagaz e empática.
 Objetivo: entender o humor e o contexto da usuária em ATÉ 5 turnos e então responder com ATÉ 5 músicas específicas.
 Regras:
 - Responda SEMPRE em português do Brasil, chamando a usuária de "Senhorita TT".
@@ -149,6 +148,7 @@ def chat_send(req: ChatSendRequest):
     if force_json:
         msgs.append({"role": "system", "content": "You must now output ONLY the JSON with up to 5 songs."})
     try:
+        client = get_groq()
         resp = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=msgs,
@@ -169,9 +169,7 @@ def chat_send(req: ChatSendRequest):
         if not s["token"]:
             suggestions = [{"query": q} for q in raw_songs]
             s["messages"].append({"role": "assistant", "content": "Tenho a shortlist. Conecte o Spotify para eu criar a playlist automaticamente."})
-            return ChatSendResponse(
-                messages=s["messages"], pending=False, suggestions=suggestions, finalized=False, playlist=None
-            )
+            return ChatSendResponse(messages=s["messages"], pending=False, suggestions=suggestions, finalized=False, playlist=None)
         s["token"] = ensure_token(s["token"])
         access = s["token"]["access_token"]
         me = s.get("user") or get_current_user(access)
@@ -185,12 +183,7 @@ def chat_send(req: ChatSendRequest):
                 uris.append(t["uri"])
         suggestions = track_objs
         if uris:
-            pl = create_playlist(
-                access, user_id,
-                name=f"MoodTunes • {s['mood'] or 'Mood'}",
-                description="Gerada automaticamente pelo MoodTunes.",
-                public=False
-            )
+            pl = create_playlist(access, user_id, name=f"MoodTunes • {s['mood'] or 'Mood'}", description="Gerada automaticamente pelo MoodTunes.", public=False)
             add_tracks_to_playlist(access, pl["id"], uris)
             playlist_url = pl.get("external_urls", {}).get("spotify")
             playlist_info = {"id": pl["id"], "url": playlist_url, "name": pl.get("name")}
@@ -200,10 +193,4 @@ def chat_send(req: ChatSendRequest):
             s["messages"].append({"role": "assistant", "content": "Não consegui resolver as faixas. Pode ajustar os títulos?"})
     else:
         s["messages"].append({"role": "assistant", "content": reply})
-    return ChatSendResponse(
-        messages=s["messages"],
-        pending=not bool(parsed),
-        suggestions=suggestions,
-        finalized=finalized,
-        playlist=playlist_info
-    )
+    return ChatSendResponse(messages=s["messages"], pending=not bool(parsed), suggestions=suggestions, finalized=finalized, playlist=playlist_info)
