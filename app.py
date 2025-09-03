@@ -59,24 +59,33 @@ class ChatSendResponse(BaseModel):
     finalized: bool
     playlist: Optional[Dict[str, Any]] = None
 
-SYSTEM_PROMPT = """Você é a Friday (MoodTunes), concierge musical concisa, sagaz e empática.
-Objetivo: entender o humor e o contexto da usuária em ATÉ 5 turnos e então responder com ATÉ 5 músicas específicas.
-Regras:
-- Responda SEMPRE em português do Brasil, chamando a usuária de "Senhorita TT".
-- Mantenha mensagens curtas e colaborativas. Faça perguntas objetivas.
-- Quando estiver pronta, responda APENAS com um JSON contendo:
-  {
-    "mood": "string",
-    "rationale": "string",
-    "songs": ["Artista - Título", ... (máx 5)]
-  }
-- Nunca inclua mais de 5 músicas.
-- Após enviar o JSON, pare de falar.
+SYSTEM_PROMPT = """Você é o MoodTunes, um DJ-terapeuta de bolso: caloroso, minimalista, assertivo e empático, com humor sutil. Na primeira resposta, apresente-se brevemente como “MoodTunes, seu DJ-terapeuta” e convide a usuária a desabafar em uma frase.
+Objetivo: em ATÉ 5 turnos da usuária, entender humor e contexto e, somente no fechamento, emitir um JSON final com ATÉ 5 músicas específicas.
+Diretrizes de estilo:
+- Sempre em português do Brasil. Trate a usuária por “Senhorita TT”.
+- Respostas curtíssimas, calmas e confiantes. Uma pergunta por turno.
+- Tom acolhedor e terapêutico, sem jargão clínico. Metáforas musicais leves.
+- Não ofereça listas de músicas durante a conversa.
+Coleta rápida:
+1) Humor/energia (ex.: relaxar, foco, euforia)
+2) Contexto (atividade, momento do dia)
+3) Preferências e restrições (gêneros/artistas a evitar)
+4) Idioma/década desejada
+5) Instrumental ou com voz
+Política de saída:
+- Durante a conversa: NUNCA use JSON, chaves, colchetes ou aspas em formato de estrutura.
+- Quando instruída pelo sistema para finalizar: produza SOMENTE o JSON no formato exato:
+{
+  "mood": "string",
+  "rationale": "string",
+  "songs": ["Artista - Título", ... (máx 5)]
+}
+Nada antes ou depois do JSON.
 """
 
 FINALIZE_KEYWORDS = [
     "cria a playlist","pode criar","finaliza","finalizar","manda ver",
-    "bora","fechar playlist","tá pronta","criar playlist"
+    "bora","fechar playlist","tá pronta","criar playlist","ok fecha","segue","pode fechar"
 ]
 
 def ensure_session(session_id: str) -> Dict[str, Any]:
@@ -104,6 +113,18 @@ def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
     except Exception:
         pass
     return None
+
+def looks_like_song_json(text: str) -> bool:
+    t = (text or "").strip()
+    return ('"songs"' in t and t.startswith("{") and t.endswith("}")) or ("```" in t and '"songs"' in t)
+
+def visible_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    clean = []
+    for m in messages:
+        if m.get("role") == "assistant" and looks_like_song_json(m.get("content", "")):
+            continue
+        clean.append(m)
+    return clean
 
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
@@ -168,8 +189,8 @@ def chat_send(req: ChatSendRequest):
         s["songs"] = raw_songs
         if not s["token"]:
             suggestions = [{"query": q} for q in raw_songs]
-            s["messages"].append({"role": "assistant", "content": "Tenho a shortlist. Conecte o Spotify para eu criar a playlist automaticamente."})
-            return ChatSendResponse(messages=s["messages"], pending=False, suggestions=suggestions, finalized=False, playlist=None)
+            s["messages"].append({"role": "assistant", "content": "Entendi sua vibe. Conecte o Spotify para eu criar sua playlist automaticamente."})
+            return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=suggestions, finalized=False, playlist=None)
         s["token"] = ensure_token(s["token"])
         access = s["token"]["access_token"]
         me = s.get("user") or get_current_user(access)
@@ -188,9 +209,10 @@ def chat_send(req: ChatSendRequest):
             playlist_url = pl.get("external_urls", {}).get("spotify")
             playlist_info = {"id": pl["id"], "url": playlist_url, "name": pl.get("name")}
             finalized = True
-            s["messages"].append({"role": "assistant", "content": f"Playlist criada automaticamente: {playlist_info['name']}"})
+            s["messages"].append({"role": "assistant", "content": f"Playlist criada: {playlist_info['name']}."})
         else:
             s["messages"].append({"role": "assistant", "content": "Não consegui resolver as faixas. Pode ajustar os títulos?"})
     else:
-        s["messages"].append({"role": "assistant", "content": reply})
-    return ChatSendResponse(messages=s["messages"], pending=not bool(parsed), suggestions=suggestions, finalized=finalized, playlist=playlist_info)
+        if not looks_like_song_json(reply):
+            s["messages"].append({"role": "assistant", "content": reply})
+    return ChatSendResponse(messages=visible_messages(s["messages"]), pending=not bool(parsed), suggestions=suggestions, finalized=finalized, playlist=playlist_info)
