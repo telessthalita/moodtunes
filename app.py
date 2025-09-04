@@ -59,32 +59,24 @@ class ChatSendResponse(BaseModel):
     finalized: bool
     playlist: Optional[Dict[str, Any]] = None
 
-SYSTEM_PROMPT = """Você é o MoodTunes, o Guardião da Playlist: um DJ-terapeuta sábio e enigmático que protege trilhas sonoras únicas.
-Primeiro turno: apresente-se como o Guardião da Playlist e peça o NOME da pessoa de forma acolhedora e breve. Até saber o nome, não avance para outras perguntas.
+SYSTEM_PROMPT = """Você é o MoodTunes, o Guardião da Playlist: direto, acolhedor e profissional.
+Primeiro turno: apresente-se como o Guardião da Playlist e peça o NOME da pessoa de forma objetiva. Não avance para outras perguntas até saber o nome.
 Estilo:
-- Sempre em português do Brasil.
-- Fale de forma breve, poética e confiante, com metáforas de guardião/mestre.
-- Uma pergunta por turno. Tom acolhedor, sem jargão clínico.
-Uso do nome:
-- Após a pessoa informar o nome, use-o naturalmente nas próximas respostas.
+- Português do Brasil, frases curtas, sem floreios nem metáforas românticas.
+- Uma pergunta por turno. Tom calmo e confiante.
+- Use o nome informado de forma natural, sem exageros.
 Objetivo:
-- Em ATÉ 5 turnos após saber o nome, entender humor, contexto e preferências.
-- Nunca repetir músicas já oferecidas antes na conversa.
-- Nunca sugerir a mesma música duas vezes.
-Coleta rápida após saber o nome:
-1) Humor/energia (relaxar, foco, euforia)
-2) Contexto (atividade, momento do dia)
-3) Preferências e restrições (gêneros/artistas a evitar)
-4) Idioma/década desejada
-5) Instrumental ou com voz
-Política de saída:
-- Durante a conversa: nunca use JSON, chaves, colchetes ou aspas de estrutura.
-- Ao finalizar: produza SOMENTE o JSON no formato exato:
+- Depois de saber o nome, em ATÉ 5 turnos, entender: humor/energia, contexto (atividade/momento), preferências e restrições, idioma/década, instrumental ou voz.
+- Não repita músicas já oferecidas na conversa.
+Saída:
+- Durante a conversa: nunca use JSON nem estruturas com chaves/colchetes/aspas de objeto.
+- Ao finalizar quando instruído pelo sistema: produza SOMENTE o JSON exato:
 {
   "mood": "string",
   "rationale": "string",
-  "songs": ["Artista - Título", ... máx 5, todas inéditas]
+  "songs": ["Artista - Título", ... (máx 5, todas inéditas)]
 }
+Nada antes ou depois do JSON.
 """
 
 FINALIZE_KEYWORDS = [
@@ -107,22 +99,32 @@ def ensure_session(session_id: str) -> Dict[str, Any]:
 
 def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
     import json, re
-    text = reply
-    if "```" in reply:
-        blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", reply, flags=re.S)
+    text = reply or ""
+    if "```" in text:
+        blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.S)
         if blocks:
-            text = blocks[-1]
-    try:
-        obj = json.loads(text)
-        if isinstance(obj, dict) and "songs" in obj:
-            return obj
-    except Exception:
-        pass
+            try:
+                return json.loads(blocks[-1])
+            except Exception:
+                pass
+    pat = re.compile(r"\{[^{}]*\"songs\"\s*:\s*\[[\s\S]*?\][^{}]*\}", re.S)
+    m = pat.search(text)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            pass
+    t = text.strip()
+    if t.startswith("{") and t.endswith("}") and '"songs"' in t:
+        try:
+            return json.loads(t)
+        except Exception:
+            pass
     return None
 
 def looks_like_song_json(text: str) -> bool:
     t = (text or "").strip()
-    return ('"songs"' in t and t.startswith("{") and t.endswith("}")) or ("```" in t and '"songs"' in t)
+    return ('"songs"' in t and "{" in t and "}" in t) or ("```" in t and '"songs"' in t)
 
 def visible_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
     clean = []
@@ -139,7 +141,7 @@ def maybe_mark_name_known(session: Dict[str, Any], last_user_text: str):
     txt = (last_user_text or "").strip()
     if not txt:
         return
-    if re.search(r"\bmeu nome\b|\bme chama\b|\bsou o\b|\bsou a\b|\bchamo[- ]?me\b", txt, flags=re.I) or len(txt.split()) <= 5:
+    if re.search(r"\bmeu nome\b|\bme chama\b|\bchamo[- ]?me\b|\bsou (o|a)\b", txt, flags=re.I) or len(txt.split()) <= 3:
         session["name_known"] = True
 
 @app.post("/session/start", response_model=StartSessionResponse)
@@ -183,7 +185,7 @@ def chat_send(req: ChatSendRequest):
     user_turns = sum(1 for m in s["messages"] if m["role"] == "user")
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
     if not s.get("name_known"):
-        msgs += [m for m in s["messages"] if m["role"] == "user" or m["role"] == "assistant"][-2:]
+        msgs += [m for m in s["messages"] if m["role"] in ("user","assistant")][-2:]
     else:
         msgs += s["messages"]
     force_json = (user_turns >= 5 and s.get("name_known")) or any(kw in req.message.lower() for kw in FINALIZE_KEYWORDS)
@@ -212,11 +214,11 @@ def chat_send(req: ChatSendRequest):
         s["all_songs"].extend(unique_songs)
         s["songs"] = unique_songs
         if not unique_songs:
-            s["messages"].append({"role": "assistant", "content": "Essas canções já guardam sua memória. Traga outra direção para revelarmos trilhas inéditas."})
+            s["messages"].append({"role": "assistant", "content": "Essas faixas já foram usadas. Traga outra direção para eu sugerir inéditas."})
             return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=[], finalized=False, playlist=None)
         if not s["token"]:
             suggestions = [{"query": q} for q in unique_songs]
-            s["messages"].append({"role": "assistant", "content": "Conecte seu Spotify para eu forjar sua playlist única."})
+            s["messages"].append({"role": "assistant", "content": "Conecte seu Spotify para eu criar sua playlist automaticamente."})
             return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=suggestions, finalized=False, playlist=None)
         s["token"] = ensure_token(s["token"])
         access = s["token"]["access_token"]
@@ -236,9 +238,9 @@ def chat_send(req: ChatSendRequest):
             playlist_url = pl.get("external_urls", {}).get("spotify")
             playlist_info = {"id": pl["id"], "url": playlist_url, "name": pl.get("name")}
             finalized = True
-            s["messages"].append({"role": "assistant", "content": f"A trilha está selada: {playlist_info['name']}."})
+            s["messages"].append({"role": "assistant", "content": f"Playlist criada: {playlist_info['name']}."})
         else:
-            s["messages"].append({"role": "assistant", "content": "Não encontrei essas faixas nos portais. Cite novos nomes ou direções e eu busco outras trilhas."})
+            s["messages"].append({"role": "assistant", "content": "Não encontrei essas faixas. Traga outros nomes ou direções."})
     else:
         if not looks_like_song_json(reply):
             s["messages"].append({"role": "assistant", "content": reply})
