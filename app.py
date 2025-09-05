@@ -212,12 +212,13 @@ def chat_send(req: ChatSendRequest):
     else:
         msgs += s["messages"]
     cov = coverage_score(s["messages"])
+    finalize_intent = any(kw in req.message.lower() for kw in FINALIZE_KEYWORDS)
     force_json = (
-        s.get("name_known")
+        bool(s.get("name_known"))
         and (
             cov >= 3
             or user_turns >= MAX_TURNS
-            or any(kw in req.message.lower() for kw in FINALIZE_KEYWORDS)
+            or (finalize_intent and (cov >= 2 or user_turns >= MIN_TURNS))
         )
     )
     if force_json:
