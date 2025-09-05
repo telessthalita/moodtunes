@@ -75,7 +75,7 @@ Saída:
 {
   "mood": "string",
   "rationale": "string",
-  "songs": ["Artista - Título", ... (máx 5, todas inéditas)]
+  "songs": ["Artista - Título", ... (máx 10, todas inéditas)]
 }
 Nada antes ou depois do JSON.
 """
@@ -222,7 +222,7 @@ def chat_send(req: ChatSendRequest):
         )
     )
     if force_json:
-        msgs.append({"role": "system", "content": "You must now output ONLY the JSON with up to 5 songs."})
+        msgs.append({"role": "system", "content": "You must now output ONLY the JSON with up to 10 songs."})
     try:
         client = get_groq()
         resp = client.chat.completions.create(
@@ -240,7 +240,7 @@ def chat_send(req: ChatSendRequest):
     playlist_info: Optional[Dict[str, Any]] = None
     if parsed:
         s["mood"] = parsed.get("mood")
-        raw_songs = parsed.get("songs", [])[:5]
+        raw_songs = parsed.get("songs", [])[:10]
         already = set(s.get("all_songs", []))
         unique_songs = [song for song in raw_songs if song not in already]
         s["all_songs"].extend(unique_songs)
