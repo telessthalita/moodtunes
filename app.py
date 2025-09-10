@@ -31,12 +31,19 @@ FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://preview--moodtuness.
 
 app = FastAPI(title="MoodTunes API", version="1.0.0")
 
+ALLOWED_ORIGINS = [
+    FRONTEND_BASE_URL,
+    "https://moodtunes.lovable.app",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_BASE_URL],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https:\/\/preview--moodtune[s\-\.a-z0-9]*\.lovable\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
