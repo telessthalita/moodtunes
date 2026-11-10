@@ -1,7 +1,12 @@
 import os
+import re
+import time
 import uuid
+import secrets
+import logging
 from typing import Dict, Any, List, Optional
 
+import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -20,6 +25,8 @@ from spotify_client import (
 )
 
 load_dotenv()
+
+logger = logging.getLogger("moodtunes")
 
 def get_groq():
     key = os.getenv("GROQ_API_KEY")
@@ -47,6 +54,24 @@ app.add_middleware(
 )
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
+SESSION_TTL_SECONDS = 6 * 60 * 60
+MAX_SESSIONS = 5000
+
+# state do OAuth -> (session_id, expira_em). Uso único, para o callback só
+# aceitar logins que este backend iniciou.
+OAUTH_STATES: Dict[str, tuple] = {}
+OAUTH_STATE_TTL_SECONDS = 10 * 60
+
+def purge_expired() -> None:
+    now = time.time()
+    for sid in [k for k, v in SESSIONS.items() if now - v.get("last_seen", now) > SESSION_TTL_SECONDS]:
+        SESSIONS.pop(sid, None)
+    for st in [k for k, v in OAUTH_STATES.items() if v[1] <= now]:
+        OAUTH_STATES.pop(st, None)
+    if len(SESSIONS) > MAX_SESSIONS:
+        oldest = sorted(SESSIONS, key=lambda k: SESSIONS[k].get("last_seen", 0))
+        for sid in oldest[: len(SESSIONS) - MAX_SESSIONS]:
+            SESSIONS.pop(sid, None)
 
 class StartSessionResponse(BaseModel):
     session_id: str
@@ -74,7 +99,7 @@ Estilo:
 - Use o nome informado de forma natural, sem exageros.
 Objetivo:
 - Após saber o nome, colete rápido: humor/energia, procure entender bem o humor contexto (atividade/momento), preferências e restrições, idioma/década, instrumental ou voz.
-- Finalize assim que tiver informações suficientes para sugerir até 5 músicas. Sem esperar número fixo de turnos.
+- Finalize assim que tiver informações suficientes para sugerir até 10 músicas. Sem esperar número fixo de turnos.
 - Não repita músicas já oferecidas na conversa.
 Saída:
 - Durante a conversa: nunca use JSON nem estruturas com chaves/colchetes/aspas de objeto.
@@ -90,7 +115,7 @@ Nada antes ou depois do JSON.
 
 FINALIZE_KEYWORDS = [
     "cria a playlist","pode criar","finaliza","finalizar","manda ver",
-    "bora","fechar playlist","tá pronta","criar playlist","ok fecha","segue","pode fechar"
+    "bora criar","bora fechar","fechar playlist","tá pronta","criar playlist","ok fecha","pode fechar"
 ]
 
 MIN_TURNS = 2
@@ -122,10 +147,12 @@ def ensure_session(session_id: str) -> Dict[str, Any]:
             "all_songs": [],
             "name_known": False,
         }
+    SESSIONS[session_id]["last_seen"] = time.time()
     return SESSIONS[session_id]
 
+
 def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
-    import json, re
+    import json
     text = reply or ""
     if "```" in text:
         blocks = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.S)
@@ -161,48 +188,68 @@ def visible_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         clean.append(m)
     return clean
 
+NOT_A_NAME = {
+    "oi", "olá", "ola", "oie", "eai", "e aí", "e ai", "opa", "hey", "hello", "hi",
+    "bom dia", "boa tarde", "boa noite", "tudo bem", "tudo bem?", "blz", "beleza",
+    "sim", "não", "nao", "ok", "bora", "vamos", "começar", "comecar",
+}
+
 def maybe_mark_name_known(session: Dict[str, Any], last_user_text: str):
-    import re
     if session.get("name_known"):
         return
     txt = (last_user_text or "").strip()
     if not txt:
         return
-    if re.search(r"\bmeu nome\b|\bme chama\b|\bchamo[- ]?me\b|\bsou (o|a)\b", txt, flags=re.I) or len(txt.split()) <= 3:
+    if re.search(r"\bmeu nome\b|\bme chama\b|\bchamo[- ]?me\b|\bsou (o|a)\b", txt, flags=re.I):
+        session["name_known"] = True
+        return
+    # Resposta curta só conta como nome depois que o bot já perguntou,
+    # e se não for só um cumprimento.
+    bot_already_asked = any(m["role"] == "assistant" for m in session["messages"])
+    cleaned = txt.lower().strip(" !.,?")
+    if bot_already_asked and len(txt.split()) <= 3 and cleaned not in NOT_A_NAME and "?" not in txt:
         session["name_known"] = True
 
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
+    purge_expired()
     sid = str(uuid.uuid4())
     ensure_session(sid)
     return StartSessionResponse(session_id=sid)
 
 @app.get("/session/status", response_model=StatusResponse)
 def session_status(session_id: str = Query(...)):
+    if session_id not in SESSIONS:
+        return StatusResponse(authenticated=False, user=None)
     s = ensure_session(session_id)
-    token = s["token"]
-    user = s["user"]
-    return StatusResponse(authenticated=bool(token), user=user)
+    return StatusResponse(authenticated=bool(s["token"]), user=s["user"])
 
 @app.get("/auth/login")
 def auth_login(session_id: str = Query(...)):
-    url = build_auth_url(state=session_id)
-    return {"auth_url": url}
+    purge_expired()
+    ensure_session(session_id)
+    state = secrets.token_urlsafe(32)
+    OAUTH_STATES[state] = (session_id, time.time() + OAUTH_STATE_TTL_SECONDS)
+    return {"auth_url": build_auth_url(state=state)}
 
 @app.get("/callback")
 def auth_callback(code: str = Query(None), state: str = Query(None)):
     if not code or not state:
         return HTMLResponse("<h3>Callback inválido (faltou code/state)</h3>", status_code=400)
-    s = ensure_session(state)
+    session_id, expires_at = OAUTH_STATES.pop(state, (None, 0))
+    if not session_id or expires_at <= time.time() or session_id not in SESSIONS:
+        return HTMLResponse("<h3>Login expirado ou inválido. Volte ao MoodTunes e conecte de novo.</h3>", status_code=400)
+    s = ensure_session(session_id)
     try:
         token = exchange_code_for_token(code)
-        s["token"] = token
         me = get_current_user(token["access_token"])
-        s["user"] = {"id": me.get("id"), "display_name": me.get("display_name")}
-        target = f"{FRONTEND_BASE_URL}?session_id={state}&auth=ok"
-        return RedirectResponse(url=target, status_code=302)
-    except Exception as e:
-        return HTMLResponse(f"<h3>Falha ao autenticar: {e}</h3>", status_code=400)
+    except Exception:
+        logger.exception("Falha ao autenticar no Spotify")
+        return HTMLResponse("<h3>Não consegui conectar ao Spotify. Volte ao MoodTunes e tente de novo.</h3>", status_code=400)
+    s["token"] = token
+    s["user"] = {"id": me.get("id"), "display_name": me.get("display_name")}
+    target = f"{FRONTEND_BASE_URL}?session_id={session_id}&auth=ok"
+    return RedirectResponse(url=target, status_code=302)
 
 @app.get("/callback/")
 def auth_callback_trailing(code: str = Query(None), state: str = Query(None)):
@@ -211,8 +258,8 @@ def auth_callback_trailing(code: str = Query(None), state: str = Query(None)):
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(req: ChatSendRequest):
     s = ensure_session(req.session_id)
-    s["messages"].append({"role": "user", "content": req.message})
     maybe_mark_name_known(s, req.message)
+    s["messages"].append({"role": "user", "content": req.message})
     user_turns = sum(1 for m in s["messages"] if m["role"] == "user")
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
     if not s.get("name_known"):
@@ -260,21 +307,41 @@ def chat_send(req: ChatSendRequest):
             suggestions = [{"query": q} for q in unique_songs]
             s["messages"].append({"role": "assistant", "content": "Conecte seu Spotify para eu criar sua playlist automaticamente."})
             return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=suggestions, finalized=False, playlist=None)
-        s["token"] = ensure_token(s["token"])
-        access = s["token"]["access_token"]
-        me = s.get("user") or get_current_user(access)
-        user_id = me.get("id")
-        track_objs = []
-        uris = []
-        for q in unique_songs:
-            t = search_track_full(access, q)
-            if t:
-                track_objs.append(t)
-                uris.append(t["uri"])
+        try:
+            s["token"] = ensure_token(s["token"])
+            access = s["token"]["access_token"]
+            me = s.get("user") or get_current_user(access)
+            user_id = me.get("id")
+            track_objs = []
+            uris = []
+            for q in unique_songs:
+                t = search_track_full(access, q)
+                if t:
+                    track_objs.append(t)
+                    uris.append(t["uri"])
+            pl = None
+            if uris:
+                pl = create_playlist(access, user_id, name=f"MoodTunes • {s['mood'] or 'Mood'}", description="Gerada automaticamente pelo MoodTunes.", public=False)
+                add_tracks_to_playlist(access, pl["id"], uris)
+        except (requests.RequestException, KeyError) as e:
+            logger.exception("Falha ao falar com o Spotify")
+            # Libera as faixas para uma nova tentativa.
+            s["all_songs"] = [x for x in s["all_songs"] if x not in unique_songs]
+            resp_err = getattr(e, "response", None)
+            status = getattr(resp_err, "status_code", None)
+            token_refresh_failed = status == 400 and "accounts.spotify.com" in (getattr(resp_err, "url", "") or "")
+            if isinstance(e, KeyError) or status == 401 or token_refresh_failed:
+                s["token"] = None
+                s["user"] = None
+                msg = "Sua conexão com o Spotify caiu. Conecte de novo e eu fecho a playlist."
+            elif status == 429:
+                msg = "O Spotify pediu um respiro. Espera uns segundos e manda de novo."
+            else:
+                msg = "O Spotify não respondeu agora. Tenta de novo em instantes."
+            s["messages"].append({"role": "assistant", "content": msg})
+            return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=[{"query": q} for q in unique_songs], finalized=False, playlist=None)
         suggestions = track_objs
-        if uris:
-            pl = create_playlist(access, user_id, name=f"MoodTunes • {s['mood'] or 'Mood'}", description="Gerada automaticamente pelo MoodTunes.", public=False)
-            add_tracks_to_playlist(access, pl["id"], uris)
+        if pl:
             playlist_url = pl.get("external_urls", {}).get("spotify")
             playlist_info = {"id": pl["id"], "url": playlist_url, "name": pl.get("name")}
             finalized = True
