@@ -98,7 +98,7 @@ class ChatSendResponse(BaseModel):
 SYSTEM_PROMPT = """Você é o MoodTunes, um DJ no estilo Tony Stark: confiante, sagaz, direto e acolhedor. Você conversa com a pessoa para montar uma playlist no Spotify.
 
 Como conversar:
-- Português do Brasil, informal. Respostas de 1 ou 2 frases curtas. Humor rápido, sem arrogância.
+- Português do Brasil, informal. Respostas de 1 ou 2 frases curtas, em um parágrafo só. Humor rápido, sem arrogância. Sem emojis.
 - Antes de responder, releia a conversa inteira. Nunca repita uma pergunta que já foi respondida e nunca peça de novo algo que a pessoa já contou, mesmo que ela tenha contado antes de você perguntar.
 - Comece cada resposta reagindo em poucas palavras ao que a pessoa acabou de dizer. Depois faça UMA pergunta nova.
 - Apresente-se como "DJ com armadura tecnológica" somente na sua primeira resposta. Depois disso, nunca mais se apresente.
@@ -186,6 +186,12 @@ def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
     return None
+
+def song_key(song: str) -> str:
+    """Chave para comparar músicas ignorando maiúsculas, traços e '(Instrumental)'."""
+    t = re.sub(r"\([^)]*\)", " ", song.lower())
+    t = re.sub(r"[–—-]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
 
 def final_message(parsed: Dict[str, Any]) -> str:
     rationale = str(parsed.get("rationale") or "").strip()
@@ -284,6 +290,8 @@ def chat_send(req: ChatSendRequest):
                 max_tokens=1500,
                 # modelo com raciocínio: esforço baixo para sobrar espaço para a resposta
                 extra_body={"reasoning_effort": "low"},
+                # na hora de fechar, obriga a resposta a ser um JSON válido
+                **({"response_format": {"type": "json_object"}} if force_json else {}),
             )
             reply = (resp.choices[0].message.content or "").strip()
             if reply:
@@ -299,10 +307,14 @@ def chat_send(req: ChatSendRequest):
     playlist_info: Optional[Dict[str, Any]] = None
     if parsed:
         s["mood"] = parsed.get("mood")
-        raw_songs = parsed.get("songs", [])[:10]
+        raw_songs = [x.strip() for x in parsed.get("songs", []) if isinstance(x, str) and x.strip()][:10]
         already = set(s.get("all_songs", []))
-        unique_songs = [song for song in raw_songs if song not in already]
-        s["all_songs"].extend(unique_songs)
+        unique_songs = []
+        for song in raw_songs:
+            key = song_key(song)
+            if key not in already:
+                already.add(key)
+                unique_songs.append(song)
         s["songs"] = unique_songs
         if not unique_songs:
             s["messages"].append({"role": "assistant", "content": "Essas faixas já foram usadas. Me diga um gênero/era diferente ou se prefere instrumental/voz para eu sugerir inéditas."})
@@ -311,6 +323,8 @@ def chat_send(req: ChatSendRequest):
             suggestions = [{"query": q} for q in unique_songs]
             s["messages"].append({"role": "assistant", "content": "Conecte seu Spotify para eu criar sua playlist automaticamente."})
             return ChatSendResponse(messages=visible_messages(s["messages"]), pending=False, suggestions=suggestions, finalized=False, playlist=None)
+        used_keys = {song_key(x) for x in unique_songs}
+        s["all_songs"].extend(used_keys)
         try:
             s["token"] = ensure_token(s["token"])
             access = s["token"]["access_token"]
@@ -330,7 +344,7 @@ def chat_send(req: ChatSendRequest):
         except (requests.RequestException, KeyError) as e:
             logger.exception("Falha ao falar com o Spotify")
             # Libera as faixas para uma nova tentativa.
-            s["all_songs"] = [x for x in s["all_songs"] if x not in unique_songs]
+            s["all_songs"] = [x for x in s["all_songs"] if x not in used_keys]
             resp_err = getattr(e, "response", None)
             status = getattr(resp_err, "status_code", None)
             token_refresh_failed = status == 400 and "accounts.spotify.com" in (getattr(resp_err, "url", "") or "")
