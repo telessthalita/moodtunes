@@ -273,6 +273,16 @@ window.close();
 setTimeout(function(){ if(!window.closed){ location.replace(document.getElementById('back').href); } }, 1500);
 </script></body></html>"""
 
+@app.get("/health")
+def health():
+    """Diz se a API está de pé e onde as sessões estão sendo guardadas."""
+    if not (UPSTASH_URL and UPSTASH_TOKEN):
+        return {"ok": True, "store": "memory"}
+    stamp = str(int(time.time()))
+    redis_cmd("SET", "moodtunes:health", stamp, "EX", "60")
+    ok = redis_cmd("GET", "moodtunes:health") == stamp
+    return {"ok": ok, "store": "redis" if ok else "redis_error"}
+
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
     purge_expired()

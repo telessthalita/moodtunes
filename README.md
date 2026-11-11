@@ -40,6 +40,7 @@ A documentação interativa fica em `http://localhost:8000/docs`.
 
 | Rota | O que faz |
 | --- | --- |
+| `GET /health` | Diz se a API está de pé e se as sessões estão no Redis ou na memória |
 | `POST /session/start` | Cria uma sessão e devolve o `session_id` |
 | `GET /session/status?session_id=...` | Diz se a sessão já está conectada ao Spotify |
 | `GET /auth/login?session_id=...` | Devolve a `auth_url` para abrir o login do Spotify |
