@@ -34,6 +34,9 @@ def get_groq():
         raise RuntimeError("Defina GROQ_API_KEY no .env")
     return Groq(api_key=key)
 
+# A Groq desligou o llama-3.1-8b-instant em 16/08/2026; este é o substituto indicado.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://preview--moodtuness.lovable.app").rstrip("/")
 
 app = FastAPI(title="MoodTunes API", version="1.0.0")
@@ -281,12 +284,16 @@ def chat_send(req: ChatSendRequest):
     try:
         client = get_groq()
         resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=GROQ_MODEL,
             messages=msgs,
             temperature=0.6,
-            max_tokens=512,
+            max_tokens=1500,
+            # modelo com raciocínio: esforço baixo para sobrar espaço para a resposta
+            extra_body={"reasoning_effort": "low"},
         )
-        reply = resp.choices[0].message.content.strip()
+        reply = (resp.choices[0].message.content or "").strip()
+        if not reply:
+            raise RuntimeError("resposta vazia do modelo")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro Groq: {e}")
     parsed = parse_llm_songs(reply)
