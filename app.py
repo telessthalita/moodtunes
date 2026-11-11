@@ -94,26 +94,33 @@ class ChatSendResponse(BaseModel):
     finalized: bool
     playlist: Optional[Dict[str, Any]] = None
 
-SYSTEM_PROMPT = """Você é o MoodTunes no estilo Tony Stark: confiante, sagaz, direto e acolhedor.
-Primeiro turno: apresente-se como um “DJ com armadura tecnológica” e peça o NOME da pessoa de forma objetiva. Não avance até saber o nome.
-Estilo:
-- Português do Brasil. Frases curtas. Humor rápido, sem arrogância grosseira.
-- Uma pergunta por turno. Tom seguro e eficiente.
-- Use o nome informado de forma natural, sem exageros.
-Objetivo:
-- Após saber o nome, colete rápido: humor/energia, procure entender bem o humor contexto (atividade/momento), preferências e restrições, idioma/década, instrumental ou voz.
-- Finalize assim que tiver informações suficientes para sugerir até 10 músicas. Sem esperar número fixo de turnos.
-- Não repita músicas já oferecidas na conversa.
+SYSTEM_PROMPT = """Você é o MoodTunes, um DJ no estilo Tony Stark: confiante, sagaz, direto e acolhedor. Você conversa com a pessoa para montar uma playlist no Spotify.
+
+Como conversar:
+- Português do Brasil, informal. Respostas de 1 ou 2 frases curtas. Humor rápido, sem arrogância.
+- Antes de responder, releia a conversa inteira. Nunca repita uma pergunta que já foi respondida e nunca peça de novo algo que a pessoa já contou, mesmo que ela tenha contado antes de você perguntar.
+- Comece cada resposta reagindo em poucas palavras ao que a pessoa acabou de dizer. Depois faça UMA pergunta nova.
+- Apresente-se como "DJ com armadura tecnológica" somente na sua primeira resposta. Depois disso, nunca mais se apresente.
+- Se ainda não souber o nome, pergunte uma única vez. Quando souber, use o nome de vez em quando, sem exagero. Se a pessoa não quiser dizer, siga sem o nome.
+- Se a pessoa reclamar que já respondeu, peça desculpa em poucas palavras, retome o que ela disse e siga para a próxima pergunta.
+
+O que descobrir, pulando o que você já sabe:
+1. humor e energia do momento
+2. o que a pessoa vai fazer enquanto ouve
+3. gêneros ou artistas que curte ou quer evitar
+4. com voz ou instrumental, idioma ou época, só se fizer sentido
+Não precisa de tudo. Com humor, contexto e uma preferência já dá para fechar.
+
 Saída:
-- Durante a conversa: nunca use JSON nem estruturas com chaves/colchetes/aspas de objeto.
-- Nunca envie a lista das músicas, apenas a playlist pronta
-- Ao finalizar quando instruído pelo sistema: produza SOMENTE o JSON exato:
+- Durante a conversa: texto simples. Nunca use JSON, chaves, colchetes ou listas.
+- Nunca escreva a lista de músicas na conversa. A playlist é entregue pronta.
+- Quando o sistema mandar finalizar, produza SOMENTE este JSON, sem nada antes ou depois:
 {
-  "mood": "string",
-  "rationale": "string",
-  "songs": ["Artista - Título", ... (máx 10, todas inéditas)]
+  "mood": "duas ou três palavras para o nome da playlist",
+  "rationale": "uma frase curta falando direto com a pessoa, explicando a escolha a partir do que ela contou",
+  "songs": ["Artista - Título", "..."]
 }
-Nada antes ou depois do JSON.
+- Em "songs": de 8 a 10 músicas reais, que existem no Spotify, sem repetir nenhuma já sugerida.
 """
 
 FINALIZE_KEYWORDS = [
@@ -121,13 +128,14 @@ FINALIZE_KEYWORDS = [
     "bora criar","bora fechar","fechar playlist","tá pronta","criar playlist","ok fecha","pode fechar"
 ]
 
-MIN_TURNS = 2
+MIN_TURNS = 3
 MAX_TURNS = 8
+MAX_HISTORY = 30
 
 def coverage_score(messages: List[Dict[str, str]]) -> int:
     txt = " ".join(m["content"].lower() for m in messages if m["role"] == "user")[-2000:]
     score = 0
-    if any(w in txt for w in ["relax", "relaxar", "calmo", "calma", "foco", "focado", "euforia", "animado", "triste", "ansioso", "ansiosa", "dormir", "sono", "treino", "trabalho"]):
+    if any(w in txt for w in ["relax", "relaxar", "calmo", "calma", "foco", "focado", "euforia", "animado", "triste", "ansioso", "ansiosa", "dormir", "sono", "treino", "trabalho", "feliz", "alegre", "confiante", "cansad", "estressad", "pra baixo", "focar", "festa", "produtiv", "tranquil", "animada"]):
         score += 1
     if any(w in txt for w in ["estudo", "trabalho", "corrida", "academia", "noite", "manhã", "tarde", "dirigindo", "cozinhando"]):
         score += 1
@@ -148,7 +156,6 @@ def ensure_session(session_id: str) -> Dict[str, Any]:
             "mood": None,
             "songs": [],
             "all_songs": [],
-            "name_known": False,
         }
     SESSIONS[session_id]["last_seen"] = time.time()
     return SESSIONS[session_id]
@@ -179,6 +186,15 @@ def parse_llm_songs(reply: str) -> Optional[Dict[str, Any]]:
             pass
     return None
 
+def final_message(parsed: Dict[str, Any]) -> str:
+    rationale = str(parsed.get("rationale") or "").strip()
+    closing = "Playlist pronta na sua conta. Aumenta o volume."
+    if not rationale or len(rationale) > 240 or "{" in rationale:
+        return closing
+    if rationale[-1] not in ".!?":
+        rationale += "."
+    return f"{rationale} {closing}"
+
 def looks_like_song_json(text: str) -> bool:
     t = (text or "").strip()
     return ('"songs"' in t and "{" in t and "}" in t) or ("```" in t and '"songs"' in t)
@@ -190,28 +206,6 @@ def visible_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
             continue
         clean.append(m)
     return clean
-
-NOT_A_NAME = {
-    "oi", "olá", "ola", "oie", "eai", "e aí", "e ai", "opa", "hey", "hello", "hi",
-    "bom dia", "boa tarde", "boa noite", "tudo bem", "tudo bem?", "blz", "beleza",
-    "sim", "não", "nao", "ok", "bora", "vamos", "começar", "comecar",
-}
-
-def maybe_mark_name_known(session: Dict[str, Any], last_user_text: str):
-    if session.get("name_known"):
-        return
-    txt = (last_user_text or "").strip()
-    if not txt:
-        return
-    if re.search(r"\bmeu nome\b|\bme chama\b|\bchamo[- ]?me\b|\bsou (o|a)\b", txt, flags=re.I):
-        session["name_known"] = True
-        return
-    # Resposta curta só conta como nome depois que o bot já perguntou,
-    # e se não for só um cumprimento.
-    bot_already_asked = any(m["role"] == "assistant" for m in session["messages"])
-    cleaned = txt.lower().strip(" !.,?")
-    if bot_already_asked and len(txt.split()) <= 3 and cleaned not in NOT_A_NAME and "?" not in txt:
-        session["name_known"] = True
 
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
@@ -261,26 +255,22 @@ def auth_callback_trailing(code: str = Query(None), state: str = Query(None)):
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(req: ChatSendRequest):
     s = ensure_session(req.session_id)
-    maybe_mark_name_known(s, req.message)
     s["messages"].append({"role": "user", "content": req.message})
     user_turns = sum(1 for m in s["messages"] if m["role"] == "user")
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
-    if not s.get("name_known"):
-        msgs += [m for m in s["messages"] if m["role"] in ("user","assistant")][-2:]
-    else:
-        msgs += s["messages"]
+    msgs += [m for m in s["messages"] if m["role"] in ("user", "assistant")][-MAX_HISTORY:]
     cov = coverage_score(s["messages"])
     finalize_intent = any(kw in req.message.lower() for kw in FINALIZE_KEYWORDS)
     force_json = (
-        bool(s.get("name_known"))
+        user_turns >= MIN_TURNS
         and (
             cov >= 3
             or user_turns >= MAX_TURNS
-            or (finalize_intent and (cov >= 2 or user_turns >= MIN_TURNS))
+            or (finalize_intent and cov >= 1)
         )
     )
     if force_json:
-        msgs.append({"role": "system", "content": "You must now output ONLY the JSON with up to 10 songs."})
+        msgs.append({"role": "system", "content": "Hora de finalizar. Responda SOMENTE com o JSON descrito, com 8 a 10 músicas reais."})
     try:
         client = get_groq()
         resp = client.chat.completions.create(
@@ -352,7 +342,7 @@ def chat_send(req: ChatSendRequest):
             playlist_url = pl.get("external_urls", {}).get("spotify")
             playlist_info = {"id": pl["id"], "url": playlist_url, "name": pl.get("name")}
             finalized = True
-            s["messages"].append({"role": "assistant", "content": f"Playlist feita. Aumente o volume e testa a potência."})
+            s["messages"].append({"role": "assistant", "content": final_message(parsed)})
         else:
             s["messages"].append({"role": "assistant", "content": "Não encontrei essas faixas. Me dê outro direcionamento e eu recalculo em segundos."})
     else:
