@@ -36,6 +36,7 @@ def get_groq():
 
 # A Groq desligou o llama-3.1-8b-instant em 16/08/2026; este é o substituto indicado.
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "openai/gpt-oss-120b")
 
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://preview--moodtuness.lovable.app").rstrip("/")
 
@@ -271,21 +272,27 @@ def chat_send(req: ChatSendRequest):
     )
     if force_json:
         msgs.append({"role": "system", "content": "Hora de finalizar. Responda SOMENTE com o JSON descrito, com 8 a 10 músicas reais."})
-    try:
-        client = get_groq()
-        resp = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=msgs,
-            temperature=0.6,
-            max_tokens=1500,
-            # modelo com raciocínio: esforço baixo para sobrar espaço para a resposta
-            extra_body={"reasoning_effort": "low"},
-        )
-        reply = (resp.choices[0].message.content or "").strip()
-        if not reply:
-            raise RuntimeError("resposta vazia do modelo")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro Groq: {e}")
+    reply = ""
+    # O modelo às vezes devolve uma saída que a Groq não consegue ler.
+    # Tenta de novo e, na última, usa o modelo reserva.
+    for model in (GROQ_MODEL, GROQ_MODEL, GROQ_FALLBACK_MODEL):
+        try:
+            resp = get_groq().chat.completions.create(
+                model=model,
+                messages=msgs,
+                temperature=0.6,
+                max_tokens=1500,
+                # modelo com raciocínio: esforço baixo para sobrar espaço para a resposta
+                extra_body={"reasoning_effort": "low"},
+            )
+            reply = (resp.choices[0].message.content or "").strip()
+            if reply:
+                break
+        except Exception:
+            logger.exception("Falha na Groq com o modelo %s", model)
+    if not reply:
+        s["messages"].append({"role": "assistant", "content": "Deu um engasgo aqui do meu lado. Manda de novo?"})
+        return ChatSendResponse(messages=visible_messages(s["messages"]), pending=True, suggestions=[], finalized=False, playlist=None)
     parsed = parse_llm_songs(reply)
     suggestions: List[Dict[str, Any]] = []
     finalized = False
