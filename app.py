@@ -11,7 +11,7 @@ from typing import Dict, Any, List, Optional
 import requests
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq
@@ -266,7 +266,7 @@ LOGIN_DONE_PAGE = """<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MoodTunes</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0F0E0D;color:#F3F0EA;font-family:system-ui,sans-serif;text-align:center;padding:24px}a{color:#FF6B4A}</style>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0F0E0D;color:#F3F0EA;font-family:system-ui,sans-serif;text-align:center;padding:24px}a{color:#A78BFA}</style>
 </head><body><div><h2>Spotify conectado.</h2><p>Pode fechar esta janela. <a id="back" href="__TARGET__">Voltar pro MoodTunes</a></p></div>
 <script>
 window.close();
