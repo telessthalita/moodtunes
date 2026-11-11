@@ -32,6 +32,9 @@ A documentação interativa fica em `http://localhost:8000/docs`.
 | `SPOTIFY_REDIRECT_URI` | Tem que ser igual à Redirect URI cadastrada no app do Spotify (termina em `/callback`) |
 | `GROQ_API_KEY` | Chave da Groq |
 | `FRONTEND_BASE_URL` | Endereço do front, para onde o login volta |
+| `UPSTASH_REDIS_REST_URL` | Opcional. Endereço REST do banco no Upstash, para guardar login e conversa |
+| `UPSTASH_REDIS_REST_TOKEN` | Opcional. Token REST do mesmo banco |
+| `GROQ_MODEL` | Opcional. Modelo da Groq (padrão `openai/gpt-oss-20b`) |
 
 ## Rotas
 
@@ -40,9 +43,11 @@ A documentação interativa fica em `http://localhost:8000/docs`.
 | `POST /session/start` | Cria uma sessão e devolve o `session_id` |
 | `GET /session/status?session_id=...` | Diz se a sessão já está conectada ao Spotify |
 | `GET /auth/login?session_id=...` | Devolve a `auth_url` para abrir o login do Spotify |
-| `GET /callback` | Retorno do Spotify. Redireciona para o front com `?session_id=...&auth=ok` |
+| `GET /callback` | Retorno do Spotify. Mostra uma página que fecha a janela de login sozinha |
 | `POST /chat/send` | Envia uma mensagem do chat. Quando há informação suficiente, cria a playlist |
 
-## Limitações conhecidas
+## Onde as sessões ficam
 
-As sessões ficam só na memória do servidor. Se o serviço reiniciar (no plano grátis do Render isso acontece quando ele dorme), as conversas e os logins se perdem. Sessões paradas há mais de 6 horas são apagadas.
+Sem as variáveis do Upstash, as sessões ficam só na memória do servidor. Se o serviço reiniciar (no plano grátis do Render isso acontece quando ele dorme), as conversas e os logins se perdem.
+
+Com as variáveis do Upstash preenchidas, o login do Spotify e a conversa ficam guardados por 30 dias e voltam sozinhos depois de um reinício.

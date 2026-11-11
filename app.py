@@ -1,5 +1,7 @@
 import os
 import re
+import json
+import html
 import time
 import uuid
 import secrets
@@ -65,6 +67,47 @@ MAX_SESSIONS = 5000
 # aceitar logins que este backend iniciou.
 OAUTH_STATES: Dict[str, tuple] = {}
 OAUTH_STATE_TTL_SECONDS = 10 * 60
+
+# Guarda opcional no Upstash Redis, para login e conversa sobreviverem a
+# reinícios do servidor. Sem as variáveis, tudo fica só em memória.
+UPSTASH_URL = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+UPSTASH_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+STORE_TTL_SECONDS = 30 * 24 * 60 * 60
+STORED_FIELDS = ("messages", "token", "user", "mood", "songs", "all_songs")
+MAX_STORED_MESSAGES = 60
+SESSION_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+
+def redis_cmd(*cmd: str):
+    if not (UPSTASH_URL and UPSTASH_TOKEN):
+        return None
+    try:
+        r = requests.post(UPSTASH_URL, json=list(cmd), headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"}, timeout=5)
+        r.raise_for_status()
+        return r.json().get("result")
+    except Exception:
+        logger.exception("Falha ao falar com o Redis")
+        return None
+
+def load_session(session_id: str) -> Optional[Dict[str, Any]]:
+    if not SESSION_ID_RE.match(session_id or ""):
+        return None
+    raw = redis_cmd("GET", f"moodtunes:session:{session_id}")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except ValueError:
+        return None
+
+def save_session(session_id: str) -> None:
+    s = SESSIONS.get(session_id)
+    # Sessão vazia não vale a pena guardar.
+    if not s or not (s.get("token") or s.get("messages")) or not SESSION_ID_RE.match(session_id):
+        return
+    data = {k: s.get(k) for k in STORED_FIELDS}
+    data["messages"] = (data["messages"] or [])[-MAX_STORED_MESSAGES:]
+    redis_cmd("SET", f"moodtunes:session:{session_id}", json.dumps(data), "EX", str(STORE_TTL_SECONDS))
 
 def purge_expired() -> None:
     now = time.time()
@@ -158,6 +201,11 @@ def ensure_session(session_id: str) -> Dict[str, Any]:
             "songs": [],
             "all_songs": [],
         }
+        stored = load_session(session_id)
+        if stored:
+            for k in STORED_FIELDS:
+                if stored.get(k) is not None:
+                    SESSIONS[session_id][k] = stored[k]
     SESSIONS[session_id]["last_seen"] = time.time()
     return SESSIONS[session_id]
 
@@ -214,6 +262,17 @@ def visible_messages(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
         clean.append(m)
     return clean
 
+LOGIN_DONE_PAGE = """<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoodTunes</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0F0E0D;color:#F3F0EA;font-family:system-ui,sans-serif;text-align:center;padding:24px}a{color:#FF6B4A}</style>
+</head><body><div><h2>Spotify conectado.</h2><p>Pode fechar esta janela. <a id="back" href="__TARGET__">Voltar pro MoodTunes</a></p></div>
+<script>
+window.close();
+setTimeout(function(){ if(!window.closed){ location.replace(document.getElementById('back').href); } }, 1500);
+</script></body></html>"""
+
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
     purge_expired()
@@ -223,8 +282,6 @@ def start_session():
 
 @app.get("/session/status", response_model=StatusResponse)
 def session_status(session_id: str = Query(...)):
-    if session_id not in SESSIONS:
-        return StatusResponse(authenticated=False, user=None)
     s = ensure_session(session_id)
     return StatusResponse(authenticated=bool(s["token"]), user=s["user"])
 
@@ -241,7 +298,7 @@ def auth_callback(code: str = Query(None), state: str = Query(None)):
     if not code or not state:
         return HTMLResponse("<h3>Callback inválido (faltou code/state)</h3>", status_code=400)
     session_id, expires_at = OAUTH_STATES.pop(state, (None, 0))
-    if not session_id or expires_at <= time.time() or session_id not in SESSIONS:
+    if not session_id or expires_at <= time.time():
         return HTMLResponse("<h3>Login expirado ou inválido. Volte ao MoodTunes e conecte de novo.</h3>", status_code=400)
     s = ensure_session(session_id)
     try:
@@ -252,8 +309,12 @@ def auth_callback(code: str = Query(None), state: str = Query(None)):
         return HTMLResponse("<h3>Não consegui conectar ao Spotify. Volte ao MoodTunes e tente de novo.</h3>", status_code=400)
     s["token"] = token
     s["user"] = {"id": me.get("id"), "display_name": me.get("display_name")}
-    target = f"{FRONTEND_BASE_URL}?session_id={session_id}&auth=ok"
-    return RedirectResponse(url=target, status_code=302)
+    save_session(session_id)
+    # A janela de login se fecha sozinha; a página principal percebe o login
+    # consultando /session/status. Se não der para fechar (login aberto na
+    # mesma aba), volta para o site.
+    target = html.escape(f"{FRONTEND_BASE_URL}?session_id={session_id}&auth=ok", quote=True)
+    return HTMLResponse(LOGIN_DONE_PAGE.replace("__TARGET__", target))
 
 @app.get("/callback/")
 def auth_callback_trailing(code: str = Query(None), state: str = Query(None)):
@@ -261,6 +322,12 @@ def auth_callback_trailing(code: str = Query(None), state: str = Query(None)):
 
 @app.post("/chat/send", response_model=ChatSendResponse)
 def chat_send(req: ChatSendRequest):
+    try:
+        return _chat_send(req)
+    finally:
+        save_session(req.session_id)
+
+def _chat_send(req: ChatSendRequest) -> ChatSendResponse:
     s = ensure_session(req.session_id)
     s["messages"].append({"role": "user", "content": req.message})
     user_turns = sum(1 for m in s["messages"] if m["role"] == "user")
