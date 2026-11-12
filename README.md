@@ -52,3 +52,42 @@ A documentação interativa fica em `http://localhost:8000/docs`.
 Sem as variáveis do Upstash, as sessões ficam só na memória do servidor. Se o serviço reiniciar (no plano grátis do Render isso acontece quando ele dorme), as conversas e os logins se perdem.
 
 Com as variáveis do Upstash preenchidas, o login do Spotify e a conversa ficam guardados por 30 dias e voltam sozinhos depois de um reinício.
+
+## Redis (Upstash)
+
+O Redis é opcional e serve para a pessoa continuar logada no Spotify depois de atualizar a página, mesmo que o servidor tenha reiniciado. O projeto usa o plano grátis do [Upstash](https://upstash.com), pela API REST, então não precisa instalar nenhuma biblioteca extra.
+
+### O que fica guardado
+
+Cada sessão vira uma chave `moodtunes:session:<session_id>`, com validade de 30 dias, contendo:
+
+- o token do Spotify (acesso e renovação)
+- o usuário conectado
+- as últimas 60 mensagens da conversa
+- as músicas já sugeridas
+
+Sessão vazia (sem login e sem mensagem) não é gravada. O token do Spotify nunca vai para o navegador.
+
+### Como configurar
+
+1. Crie um banco Redis no [console do Upstash](https://console.upstash.com), no plano Free.
+2. Abra o banco e vá na seção **Connect**, aba **REST**.
+3. Deixe a opção **Read-Only Token** desmarcada.
+4. Copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`, só o valor entre as aspas.
+5. No Render, abra o serviço da API, vá em **Environment**, crie as duas variáveis com esses nomes e salve com deploy. Para rodar localmente, coloque as duas no `.env`.
+
+### Como conferir
+
+Abra `/health` na API:
+
+| Resposta | O que significa |
+| --- | --- |
+| `"store": "redis"` | Tudo certo, gravando e lendo no Upstash |
+| `"store": "memory"` | A API não achou as variáveis. Confira os nomes e se foram salvas no serviço certo |
+| `"store": "redis_error"` | A API achou as variáveis, mas o Upstash recusou. O campo `detail` diz o motivo |
+
+O erro mais comum é colar o token Read-Only: a leitura funciona, a gravação volta com 403 e nada é salvo.
+
+### Se o Redis cair
+
+A API continua funcionando com as sessões em memória. O que se perde é só a recuperação depois de um reinício.
