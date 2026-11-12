@@ -289,10 +289,15 @@ def health():
         return {"ok": True, "store": "memory"}
     stamp = str(int(time.time()))
     redis_cmd("SET", "moodtunes:health", stamp, "EX", "60")
+    write_error = LAST_REDIS_ERROR
     ok = redis_cmd("GET", "moodtunes:health") == stamp
     if ok:
         return {"ok": True, "store": "redis"}
-    return {"ok": False, "store": "redis_error", "detail": LAST_REDIS_ERROR}
+    if write_error.startswith("HTTP 403"):
+        detail = "gravação recusada: o token parece ser o Read Only"
+    else:
+        detail = write_error or LAST_REDIS_ERROR or "leitura não devolveu o valor gravado"
+    return {"ok": False, "store": "redis_error", "detail": detail}
 
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
