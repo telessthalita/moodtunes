@@ -77,14 +77,23 @@ STORED_FIELDS = ("messages", "token", "user", "mood", "songs", "all_songs")
 MAX_STORED_MESSAGES = 60
 SESSION_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
+LAST_REDIS_ERROR = ""
+
 def redis_cmd(*cmd: str):
     if not (UPSTASH_URL and UPSTASH_TOKEN):
         return None
+    global LAST_REDIS_ERROR
     try:
         r = requests.post(UPSTASH_URL, json=list(cmd), headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"}, timeout=5)
-        r.raise_for_status()
+        if r.status_code >= 400:
+            # A resposta de erro do Upstash não traz o token, só o motivo.
+            LAST_REDIS_ERROR = f"HTTP {r.status_code}: {r.text[:120]}"
+            logger.error("Redis recusou %s: %s", cmd[0], LAST_REDIS_ERROR)
+            return None
+        LAST_REDIS_ERROR = ""
         return r.json().get("result")
-    except Exception:
+    except Exception as e:
+        LAST_REDIS_ERROR = type(e).__name__
         logger.exception("Falha ao falar com o Redis")
         return None
 
@@ -281,7 +290,9 @@ def health():
     stamp = str(int(time.time()))
     redis_cmd("SET", "moodtunes:health", stamp, "EX", "60")
     ok = redis_cmd("GET", "moodtunes:health") == stamp
-    return {"ok": ok, "store": "redis" if ok else "redis_error"}
+    if ok:
+        return {"ok": True, "store": "redis"}
+    return {"ok": False, "store": "redis_error", "detail": LAST_REDIS_ERROR}
 
 @app.post("/session/start", response_model=StartSessionResponse)
 def start_session():
