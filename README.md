@@ -86,8 +86,6 @@ Abra `/health` na API:
 | `"store": "memory"` | A API não achou as variáveis. Confira os nomes e se foram salvas no serviço certo |
 | `"store": "redis_error"` | A API achou as variáveis, mas o Upstash recusou. O campo `detail` diz o motivo |
 
-O erro mais comum é colar o token Read-Only: a leitura funciona, a gravação volta com 403 e nada é salvo.
-
 ### Se o Redis cair
 
 A API continua funcionando com as sessões em memória. O que se perde é só a recuperação depois de um reinício.
